@@ -1,7 +1,7 @@
 // 应用入口文件
-// 
+//
 // 该文件是Flutter应用的入口点，负责启动应用并配置Material 3主题。
-// 
+//
 // 主要功能：
 // - 启动Flutter应用
 // - 配置Material Design 3主题
@@ -22,75 +22,94 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 定义Material 3配色方案
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF1A73E8), // Google Blue
-      brightness: Brightness.light,
-    );
+    const primary = Color(0xFF2563EB);
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: primary,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: primary,
+          secondary: const Color(0xFF0F766E),
+          tertiary: const Color(0xFF10B981),
+          error: const Color(0xFFDC2626),
+          surface: const Color(0xFFFFFFFF),
+          surfaceContainerLowest: const Color(0xFFFFFFFF),
+          surfaceContainerLow: const Color(0xFFF8FAFC),
+          surfaceContainer: const Color(0xFFF1F5F9),
+          surfaceContainerHighest: const Color(0xFFE2E8F0),
+          outline: const Color(0xFFCBD5E1),
+          outlineVariant: const Color(0xFFE2E8F0),
+          onSurface: const Color(0xFF172033),
+          onSurfaceVariant: const Color(0xFF64748B),
+        );
 
     return MaterialApp(
       title: '通信助手',
       debugShowCheckedModeBanner: false,
-      
+
       // Material 3主题配置
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: colorScheme,
-        
+        scaffoldBackgroundColor: const Color(0xFFF5F7FB),
+
         // 字体主题
-        fontFamily: 'Roboto',
-        
+        fontFamily: 'Microsoft YaHei UI',
+
         // 文字主题
         textTheme: const TextTheme(
-          displayLarge: TextStyle(fontSize: 57, fontWeight: FontWeight.w400),
-          displayMedium: TextStyle(fontSize: 45, fontWeight: FontWeight.w400),
-          displaySmall: TextStyle(fontSize: 36, fontWeight: FontWeight.w400),
-          headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w400),
-          headlineMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.w400),
-          headlineSmall: TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
-          titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
-          titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, letterSpacing: 0.15),
-          titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.1),
-          bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, letterSpacing: 0.5),
-          bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, letterSpacing: 0.25),
-          bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.4),
-          labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.1),
-          labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.5),
-          labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 0.5),
+          displayLarge: TextStyle(fontSize: 44, fontWeight: FontWeight.w600),
+          displayMedium: TextStyle(fontSize: 36, fontWeight: FontWeight.w600),
+          displaySmall: TextStyle(fontSize: 30, fontWeight: FontWeight.w600),
+          headlineLarge: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+          headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+          headlineSmall: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+          titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          bodyLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
+          bodyMedium: TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+          bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+          labelLarge: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
-        
+
         // AppBar主题
         appBarTheme: AppBarTheme(
           centerTitle: false,
           elevation: 0,
-          scrolledUnderElevation: 3,
+          scrolledUnderElevation: 0,
           backgroundColor: colorScheme.surface,
           foregroundColor: colorScheme.onSurface,
           titleTextStyle: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w400,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
             color: colorScheme.onSurface,
           ),
         ),
-        
+
         // Card主题
         cardTheme: CardThemeData(
           elevation: 0,
+          color: colorScheme.surface,
+          margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: colorScheme.outlineVariant,
-              width: 1,
-            ),
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: colorScheme.outlineVariant, width: 1),
           ),
           clipBehavior: Clip.antiAlias,
         ),
-        
+
         // 输入框主题
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: colorScheme.surface,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          fillColor: colorScheme.surfaceContainerLow,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(color: colorScheme.outline),
@@ -108,21 +127,25 @@ class MyApp extends StatelessWidget {
             borderSide: BorderSide(color: colorScheme.error),
           ),
           labelStyle: TextStyle(
-            fontSize: 14,
+            fontSize: 12,
             color: colorScheme.onSurfaceVariant,
           ),
           hintStyle: TextStyle(
-            fontSize: 14,
-            color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+            fontSize: 12,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.68),
           ),
         ),
-        
+
         // 下拉框主题
         dropdownMenuTheme: DropdownMenuThemeData(
           inputDecorationTheme: InputDecorationTheme(
             filled: true,
-            fillColor: colorScheme.surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            fillColor: colorScheme.surfaceContainerLow,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: colorScheme.outline),
@@ -137,14 +160,15 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        
+
         // 按钮主题
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(8),
             ),
             textStyle: const TextStyle(
               fontSize: 14,
@@ -153,12 +177,13 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        
+
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(8),
             ),
             textStyle: const TextStyle(
               fontSize: 14,
@@ -167,12 +192,13 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        
+
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(8),
             ),
             textStyle: const TextStyle(
               fontSize: 14,
@@ -181,12 +207,12 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        
+
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(8),
             ),
             textStyle: const TextStyle(
               fontSize: 14,
@@ -195,31 +221,26 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        
+
         // 分段按钮主题
         segmentedButtonTheme: SegmentedButtonThemeData(
           style: ButtonStyle(
             shape: WidgetStateProperty.all(
-              RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             textStyle: WidgetStateProperty.all(
-              const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ),
         ),
-        
+
         // Divider主题
         dividerTheme: DividerThemeData(
           color: colorScheme.outlineVariant,
           thickness: 1,
           space: 1,
         ),
-        
+
         // Switch主题
         switchTheme: SwitchThemeData(
           thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -230,18 +251,18 @@ class MyApp extends StatelessWidget {
           }),
           trackColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.selected)) {
-              return colorScheme.primary;
+              return colorScheme.tertiary;
             }
             return colorScheme.surfaceContainerHighest;
           }),
         ),
-        
+
         // 进度条主题
         progressIndicatorTheme: ProgressIndicatorThemeData(
           color: colorScheme.primary,
           linearTrackColor: colorScheme.surfaceContainerHighest,
         ),
-        
+
         // Tooltip主题
         tooltipTheme: TooltipThemeData(
           decoration: BoxDecoration(
@@ -254,7 +275,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      
+
       home: const HomeView(),
     );
   }

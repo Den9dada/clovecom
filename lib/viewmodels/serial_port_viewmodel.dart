@@ -778,6 +778,7 @@ class SerialPortViewModel extends ChangeNotifier {
   /// 清空消息列表
   void clearMessages() {
     _messages.clear();
+    _stats = CommunicationStats();
     notifyListeners();
   }
 

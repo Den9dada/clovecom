@@ -1,44 +1,53 @@
 // USB通信视图文件
-// 
+//
 // 该文件实现了USB通信模块的占位页面。
-// 目前为预留功能，显示"功能开发中"的提示信息。
-// 
-// 后续开发计划：
-// - 实现USB设备枚举和连接
-// - 支持USB数据传输
-// - 提供USB设备信息显示
 
 import 'package:flutter/material.dart';
 
 /// USB通信视图组件
-/// 
+///
 /// 作为USB通信模块的占位页面，显示功能开发中的提示。
-/// 后续将实现完整的USB通信功能。
 class UsbView extends StatelessWidget {
   const UsbView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 居中显示功能开发提示
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // USB图标
-          Icon(Icons.usb, size: 80, color: Colors.grey),
-          SizedBox(height: 16),
-          // 模块标题
-          Text(
-            'USB通信模块',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(Icons.usb, size: 36, color: colorScheme.primary),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'USB通信模块',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '功能开发中...',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(height: 8),
-          // 开发状态提示
-          Text(
-            '功能开发中...',
-            style: TextStyle(fontSize: 16, color: Colors.grey),
-          ),
-        ],
+        ),
       ),
     );
   }
