@@ -127,6 +127,52 @@ flutter pub get
 flutter run
 ```
 
+## Windows 单文件发布
+
+项目支持通过 Enigma Virtual Box 打包为单个 Windows x64 可执行文件。打包后的用户侧程序不需要安装 Flutter、Dart 或 Microsoft Visual C++ Redistributable。
+
+### 生成 Enigma 输入目录
+
+先手动生成 Windows Release：
+
+```powershell
+flutter build windows --release
+```
+
+然后基于现有 Release 产物生成 Enigma 输入目录：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/prepare_enigma_release.ps1
+```
+
+如需让脚本顺手构建，可以显式追加 `-Build`，但常规流程建议手动确认 build 通过后再运行脚本。
+
+脚本会生成：
+
+- `release_package/enigma_input/`：Enigma 输入目录，包含 Flutter 发布产物和 VC++ 运行库 DLL
+- `release_package/clovecom.evb`：Enigma Virtual Box 项目文件
+
+### 检查本地依赖
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/check_windows_release_dependencies.ps1
+```
+
+该检查会确认 `clovecom.exe` 依赖的 `flutter_windows.dll`、`MSVCP140.dll`、`VCRUNTIME140.dll`、`VCRUNTIME140_1.dll` 已经放入 Enigma 输入目录，避免在没有安装 VC++ 运行库的电脑上出现 `Cannot load library MSVCP140.dll`。
+
+### 使用 Enigma Virtual Box
+
+请使用 Enigma Virtual Box 11.30 或更新版本。旧版本对 Flutter 动态库、非英文路径和部分虚拟目录场景存在兼容风险，可能表现为双击无反应或动态库加载失败。
+
+1. 打开 `release_package/clovecom.evb`。
+2. 确认输入文件为 `release_package/enigma_input/clovecom.exe`。
+3. 构建输出文件 `release_package/clovecom_packed.exe`。
+4. 将 `clovecom_packed.exe` 复制到干净的 Windows 10/11 x64 电脑或 Windows Sandbox 中测试。
+
+串口 USB 转接器驱动属于硬件厂商驱动，不包含在应用打包范围内。如果目标电脑第一次使用某类串口芯片，仍可能需要安装对应硬件驱动。
+
+如果目标电脑双击无反应，请检查 `%TEMP%\clovecom_startup_error.log`。该日志会记录打包后的程序是否能看到 `flutter_windows.dll`、`native_assets.json`、`data/app.so`、`data/icudtl.dat` 和 `data/flutter_assets`。
+
 ## 开发规范
 
 ### 代码风格

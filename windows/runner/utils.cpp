@@ -5,7 +5,22 @@
 #include <stdio.h>
 #include <windows.h>
 
+#include <fstream>
 #include <iostream>
+#include <sstream>
+
+namespace {
+
+std::wstring GetStartupLogPath() {
+  wchar_t temp_path[MAX_PATH];
+  DWORD temp_length = ::GetTempPathW(MAX_PATH, temp_path);
+  if (temp_length > 0 && temp_length < MAX_PATH) {
+    return std::wstring(temp_path) + L"clovecom_startup_error.log";
+  }
+  return L"clovecom_startup_error.log";
+}
+
+}  // namespace
 
 void CreateAndAttachConsole() {
   if (::AllocConsole()) {
@@ -19,6 +34,84 @@ void CreateAndAttachConsole() {
     std::ios::sync_with_stdio();
     FlutterDesktopResyncOutputStreams();
   }
+}
+
+void LogStartupEvent(const wchar_t* message) {
+  std::wofstream log_file(GetStartupLogPath(), std::ios::app);
+  if (!log_file.is_open()) {
+    return;
+  }
+
+  SYSTEMTIME now;
+  ::GetLocalTime(&now);
+  log_file << L"[" << now.wYear << L"-" << now.wMonth << L"-" << now.wDay
+           << L" " << now.wHour << L":" << now.wMinute << L":" << now.wSecond
+           << L"] " << (message == nullptr ? L"(null)" : message) << L"\n";
+}
+
+void SetCurrentDirectoryToExecutablePath() {
+  wchar_t executable_path[MAX_PATH];
+  DWORD length = ::GetModuleFileNameW(nullptr, executable_path, MAX_PATH);
+  if (length == 0 || length == MAX_PATH) {
+    return;
+  }
+
+  wchar_t* last_separator = wcsrchr(executable_path, L'\\');
+  if (last_separator == nullptr) {
+    return;
+  }
+
+  *last_separator = L'\0';
+  ::SetCurrentDirectoryW(executable_path);
+}
+
+bool ValidateFlutterRuntimeFiles() {
+  const wchar_t* required_paths[] = {
+      L"flutter_windows.dll",
+      L"native_assets.json",
+      L"data",
+      L"data\\app.so",
+      L"data\\icudtl.dat",
+      L"data\\flutter_assets",
+  };
+
+  std::wstringstream missing;
+  for (const wchar_t* path : required_paths) {
+    DWORD attributes = ::GetFileAttributesW(path);
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+      missing << L" - " << path << L"\r\n";
+    }
+  }
+
+  std::wstring missing_text = missing.str();
+  if (missing_text.empty()) {
+    LogStartupEvent(L"Flutter runtime files are visible");
+    return true;
+  }
+
+  std::wstring log_path = GetStartupLogPath();
+
+  std::wofstream log_file(log_path, std::ios::app);
+  if (log_file.is_open()) {
+    wchar_t current_directory[MAX_PATH];
+    DWORD current_length = ::GetCurrentDirectoryW(MAX_PATH, current_directory);
+    log_file << L"CloveCom startup failed because required Flutter runtime "
+                L"files were not visible.\n";
+    if (current_length > 0 && current_length < MAX_PATH) {
+      log_file << L"Current directory: " << current_directory << L"\n";
+    }
+    log_file << L"Missing files:\n" << missing_text;
+  }
+
+  std::wstring message =
+      L"CloveCom cannot start because required runtime files are missing or "
+      L"not visible to the packed executable.\r\n\r\n"
+      L"Missing:\r\n" +
+      missing_text + L"\r\nDiagnostic log:\r\n" + log_path;
+
+  ::MessageBoxW(nullptr, message.c_str(), L"CloveCom startup error",
+                MB_OK | MB_ICONERROR);
+  return false;
 }
 
 std::vector<std::string> GetCommandLineArguments() {

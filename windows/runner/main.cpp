@@ -7,6 +7,8 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  LogStartupEvent(L"wWinMain entered");
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
@@ -17,7 +19,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // plugins.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
+  SetCurrentDirectoryToExecutablePath();
+  LogStartupEvent(L"Working directory set to executable path");
+  if (!ValidateFlutterRuntimeFiles()) {
+    ::CoUninitialize();
+    return EXIT_FAILURE;
+  }
+
   flutter::DartProject project(L"data");
+  LogStartupEvent(L"Flutter project created");
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
@@ -28,8 +38,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 860);
   if (!window.Create(L"clovecom", origin, size)) {
+    LogStartupEvent(L"Flutter window creation failed");
+    ::MessageBoxW(nullptr, L"CloveCom failed to create the Flutter window.",
+                  L"CloveCom startup error", MB_OK | MB_ICONERROR);
+    ::CoUninitialize();
     return EXIT_FAILURE;
   }
+  LogStartupEvent(L"Flutter window created");
   window.SetQuitOnClose(true);
 
   ::MSG msg;
