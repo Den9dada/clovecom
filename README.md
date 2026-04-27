@@ -173,6 +173,63 @@ powershell -ExecutionPolicy Bypass -File scripts/check_windows_release_dependenc
 
 如果目标电脑双击无反应，请检查 `%TEMP%\clovecom_startup_error.log`。该日志会记录打包后的程序是否能看到 `flutter_windows.dll`、`native_assets.json`、`data/app.so`、`data/icudtl.dat` 和 `data/flutter_assets`。
 
+## Windows 安装向导发布
+
+项目也支持使用 Inno Setup 制作带安装向导的安装程序。该方式会把普通 Flutter 发布目录安装到用户电脑，创建快捷方式并支持卸载；这是面向大多数用户时更推荐的发布方式。
+
+### 生成安装包
+
+先手动生成 Windows Release：
+
+```powershell
+flutter build windows --release
+```
+
+然后生成共享发布输入目录，并检查 Windows 原生依赖：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/prepare_enigma_release.ps1
+powershell -ExecutionPolicy Bypass -File scripts/check_windows_release_dependencies.ps1
+```
+
+检查 Inno Setup 安装包输入：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/check_inno_setup_release.ps1
+```
+
+编译安装包：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/prepare_inno_setup_release.ps1
+```
+
+输出文件位于：
+
+- `release_package/inno_output/CloveComSetup.exe`
+
+如果只想校验输入而不编译安装包：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/prepare_inno_setup_release.ps1 -SkipCompile
+```
+
+如果希望脚本先重新生成共享发布输入目录：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/prepare_inno_setup_release.ps1 -PrepareInput
+```
+
+### 安装过程提醒
+
+安装向导会在以下情况显示中文提醒：
+
+- 当前系统不是 Windows x64 时阻止安装。
+- 检测到 CloveCom 正在运行时提醒先关闭程序。
+- 安装后关键文件缺失时写入 `{app}\install_check.log`，并弹窗提示重新生成发布目录后再安装。
+
+建议将 `CloveComSetup.exe` 复制到干净的 Windows 10/11 x64 电脑或 Windows Sandbox 中测试安装、启动和卸载。
+
 ## 开发规范
 
 ### 代码风格
