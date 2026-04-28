@@ -48,6 +48,10 @@ dependencies:
   # 文件选择
   file_picker: ^8.0.0+1
   
+  # 桌面文件拖拽
+  desktop_drop: ^0.7.0
+  cross_file: ^0.3.5+2
+  
   # 路径提供者
   path_provider: ^2.1.0
   
