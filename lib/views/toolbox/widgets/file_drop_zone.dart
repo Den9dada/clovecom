@@ -111,9 +111,9 @@ class _FileDropZoneState extends State<FileDropZone> {
     }
     final accepted = paths.where(_isAllowed).toList();
     if (accepted.length != paths.length && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('包含不支持的文件类型，已忽略')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('包含不支持的文件类型，已忽略')));
     }
     if (accepted.isEmpty) {
       return;

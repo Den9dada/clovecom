@@ -104,10 +104,9 @@ class HexAsciiViewer extends StatelessWidget {
   }
 
   TextStyle _mono(BuildContext context) {
-    return Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontFamily: 'Consolas',
-          height: 1.35,
-        ) ??
+    return Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontFamily: 'Consolas', height: 1.35) ??
         const TextStyle(fontFamily: 'Consolas', fontSize: 12, height: 1.35);
   }
 }

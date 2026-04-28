@@ -148,7 +148,9 @@ class HexToBinViewModel extends ChangeNotifier {
       return;
     }
     await File(path).writeAsBytes(entry.bytes!);
-    _entries[_selectedIndex] = entry.copyWith(status: ToolboxFileStatus.exported);
+    _entries[_selectedIndex] = entry.copyWith(
+      status: ToolboxFileStatus.exported,
+    );
     _lastError = null;
     notifyListeners();
   }
@@ -168,7 +170,9 @@ class HexToBinViewModel extends ChangeNotifier {
       return;
     }
     for (final entry in validEntries) {
-      final output = File('$directory${Platform.pathSeparator}${_baseName(entry.name)}.bin');
+      final output = File(
+        '$directory${Platform.pathSeparator}${_baseName(entry.name)}.bin',
+      );
       await output.writeAsBytes(entry.bytes!);
     }
     for (var index = 0; index < _entries.length; index++) {

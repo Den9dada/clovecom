@@ -3,14 +3,14 @@ class BinEditorService {
 
   static List<int> insertBytes(List<int> source, int address, List<int> bytes) {
     _checkInsertRange(source, address);
-    return <int>[
-      ...source.take(address),
-      ...bytes,
-      ...source.skip(address),
-    ];
+    return <int>[...source.take(address), ...bytes, ...source.skip(address)];
   }
 
-  static List<int> replaceBytes(List<int> source, int address, List<int> bytes) {
+  static List<int> replaceBytes(
+    List<int> source,
+    int address,
+    List<int> bytes,
+  ) {
     _checkRange(source, address, bytes.length);
     return <int>[
       ...source.take(address),
@@ -24,10 +24,7 @@ class BinEditorService {
       throw RangeError.value(length, 'length', '删除长度必须大于 0');
     }
     _checkRange(source, address, length);
-    return <int>[
-      ...source.take(address),
-      ...source.skip(address + length),
-    ];
+    return <int>[...source.take(address), ...source.skip(address + length)];
   }
 
   static void _checkInsertRange(List<int> source, int address) {

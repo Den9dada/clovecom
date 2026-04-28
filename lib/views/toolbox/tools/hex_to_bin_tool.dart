@@ -72,6 +72,7 @@ class _HexToBinToolContent extends StatelessWidget {
               allowMultiple: true,
               onFilesSelected: (paths) async {
                 await context.read<HexToBinViewModel>().importPaths(paths);
+                if (!context.mounted) return;
                 _showError(context);
               },
             ),
@@ -92,6 +93,7 @@ class _HexToBinToolContent extends StatelessWidget {
               onPressed: viewModel.canExportCurrent
                   ? () async {
                       await context.read<HexToBinViewModel>().exportCurrent();
+                      if (!context.mounted) return;
                       _showError(context);
                     }
                   : null,
@@ -103,6 +105,7 @@ class _HexToBinToolContent extends StatelessWidget {
               onPressed: viewModel.canExportBatch
                   ? () async {
                       await context.read<HexToBinViewModel>().exportBatch();
+                      if (!context.mounted) return;
                       _showError(context);
                     }
                   : null,

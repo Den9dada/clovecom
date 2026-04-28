@@ -21,7 +21,8 @@ class BinLinkService {
       return const BinLinkResult(baseAddress: 0, bytes: <int>[]);
     }
 
-    final sorted = [...segments]..sort((a, b) => a.address.compareTo(b.address));
+    final sorted = [...segments]
+      ..sort((a, b) => a.address.compareTo(b.address));
     for (final segment in sorted) {
       if (segment.address < 0) {
         throw RangeError.value(segment.address, 'address', '地址不能为负数');
@@ -37,9 +38,9 @@ class BinLinkService {
     }
 
     final baseAddress = sorted.first.address;
-    final endAddress = sorted.map((segment) => segment.endAddress).reduce(
-      (previous, current) => previous > current ? previous : current,
-    );
+    final endAddress = sorted
+        .map((segment) => segment.endAddress)
+        .reduce((previous, current) => previous > current ? previous : current);
     final output = List<int>.filled(endAddress - baseAddress, fillByte);
 
     for (final segment in sorted) {

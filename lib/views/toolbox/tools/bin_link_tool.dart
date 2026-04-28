@@ -90,6 +90,7 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
               allowMultiple: true,
               onFilesSelected: (paths) async {
                 await context.read<BinLinkViewModel>().importPaths(paths);
+                if (!context.mounted) return;
                 _showError(context);
               },
             ),
@@ -153,6 +154,7 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
               onPressed: viewModel.canExport
                   ? () async {
                       await context.read<BinLinkViewModel>().exportLinked();
+                      if (!context.mounted) return;
                       _showError(context);
                     }
                   : null,

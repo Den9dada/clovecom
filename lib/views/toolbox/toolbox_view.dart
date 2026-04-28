@@ -84,9 +84,7 @@ class ToolboxView extends StatelessWidget {
               const SizedBox(height: 10),
               Expanded(
                 child: TabBarView(
-                  children: [
-                    for (final tool in tools) tool.builder(context),
-                  ],
+                  children: [for (final tool in tools) tool.builder(context)],
                 ),
               ),
             ],

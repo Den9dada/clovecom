@@ -85,6 +85,7 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
               allowMultiple: false,
               onFilesSelected: (paths) async {
                 await context.read<BinEditorViewModel>().importPaths(paths);
+                if (!context.mounted) return;
                 _showError(context);
               },
             ),
@@ -170,6 +171,7 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
               onPressed: viewModel.hasFile
                   ? () async {
                       await context.read<BinEditorViewModel>().exportEdited();
+                      if (!context.mounted) return;
                       _showError(context);
                     }
                   : null,
