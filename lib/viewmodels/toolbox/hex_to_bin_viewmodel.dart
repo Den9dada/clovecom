@@ -1,0 +1,210 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+
+import '../../models/toolbox/toolbox_file_entry.dart';
+import '../../services/toolbox/hex_parser.dart';
+
+class HexToBinViewModel extends ChangeNotifier {
+  final List<ToolboxFileEntry> _entries = [];
+  int _selectedIndex = -1;
+  String? _lastError;
+
+  List<ToolboxFileEntry> get entries => List.unmodifiable(_entries);
+  int get selectedIndex => _selectedIndex;
+  String? get lastError => _lastError;
+
+  ToolboxFileEntry? get selectedEntry {
+    if (_selectedIndex < 0 || _selectedIndex >= _entries.length) {
+      return null;
+    }
+    return _entries[_selectedIndex];
+  }
+
+  List<int> get selectedBytes => selectedEntry?.bytes ?? <int>[];
+  int get selectedBaseAddress => selectedEntry?.baseAddress ?? 0;
+  bool get canExportCurrent => selectedEntry?.canExport ?? false;
+  bool get canExportBatch => _entries.any((entry) => entry.canExport);
+
+  void selectEntry(int index) {
+    if (index < 0 || index >= _entries.length) {
+      return;
+    }
+    _selectedIndex = index;
+    notifyListeners();
+  }
+
+  void loadHexContent({
+    required String name,
+    required String path,
+    required String content,
+  }) {
+    try {
+      final parsed = IntelHexParser.parse(content);
+      _entries.add(
+        ToolboxFileEntry(
+          name: name,
+          path: path,
+          extension: 'hex',
+          size: content.length,
+          status: ToolboxFileStatus.parsed,
+          bytes: parsed.bytes,
+          baseAddress: parsed.baseAddress,
+        ),
+      );
+      _selectedIndex = _entries.length - 1;
+      _lastError = null;
+    } catch (error) {
+      _entries.add(
+        ToolboxFileEntry(
+          name: name,
+          path: path,
+          extension: 'hex',
+          size: content.length,
+          status: ToolboxFileStatus.failed,
+          error: error.toString(),
+        ),
+      );
+      _selectedIndex = _entries.length - 1;
+      _lastError = '解析 $name 失败: $error';
+    }
+    notifyListeners();
+  }
+
+  void loadBinBytes({
+    required String name,
+    required String path,
+    required List<int> bytes,
+  }) {
+    _entries.add(
+      ToolboxFileEntry(
+        name: name,
+        path: path,
+        extension: 'bin',
+        size: bytes.length,
+        status: ToolboxFileStatus.parsed,
+        bytes: bytes,
+      ),
+    );
+    _selectedIndex = _entries.length - 1;
+    _lastError = null;
+    notifyListeners();
+  }
+
+  Future<void> importPaths(List<String> paths) async {
+    for (final path in paths) {
+      final extension = _extension(path);
+      final name = _fileName(path);
+      try {
+        if (extension == 'hex') {
+          loadHexContent(
+            name: name,
+            path: path,
+            content: await File(path).readAsString(),
+          );
+        } else if (extension == 'bin') {
+          loadBinBytes(
+            name: name,
+            path: path,
+            bytes: await File(path).readAsBytes(),
+          );
+        } else {
+          _lastError = '不支持的文件类型: $name';
+          notifyListeners();
+        }
+      } catch (error) {
+        _entries.add(
+          ToolboxFileEntry(
+            name: name,
+            path: path,
+            extension: extension,
+            size: 0,
+            status: ToolboxFileStatus.failed,
+            error: error.toString(),
+          ),
+        );
+        _lastError = '读取 $name 失败: $error';
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> exportCurrent() async {
+    final entry = selectedEntry;
+    if (entry == null || !entry.canExport || entry.bytes == null) {
+      _lastError = '没有可导出的 HEX 文件';
+      notifyListeners();
+      return;
+    }
+
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: '导出BIN文件',
+      fileName: '${_baseName(entry.name)}.bin',
+      type: FileType.custom,
+      allowedExtensions: const ['bin'],
+    );
+    if (path == null) {
+      return;
+    }
+    await File(path).writeAsBytes(entry.bytes!);
+    _entries[_selectedIndex] = entry.copyWith(status: ToolboxFileStatus.exported);
+    _lastError = null;
+    notifyListeners();
+  }
+
+  Future<void> exportBatch() async {
+    final validEntries = _entries.where((entry) => entry.canExport).toList();
+    if (validEntries.isEmpty) {
+      _lastError = '没有可批量导出的 HEX 文件';
+      notifyListeners();
+      return;
+    }
+
+    final directory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: '选择批量导出目录',
+    );
+    if (directory == null) {
+      return;
+    }
+    for (final entry in validEntries) {
+      final output = File('$directory${Platform.pathSeparator}${_baseName(entry.name)}.bin');
+      await output.writeAsBytes(entry.bytes!);
+    }
+    for (var index = 0; index < _entries.length; index++) {
+      if (_entries[index].canExport) {
+        _entries[index] = _entries[index].copyWith(
+          status: ToolboxFileStatus.exported,
+        );
+      }
+    }
+    _lastError = null;
+    notifyListeners();
+  }
+
+  static String formatBytes(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(2)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+  }
+
+  String _fileName(String path) => path.split(RegExp(r'[\\/]')).last;
+
+  String _extension(String path) {
+    final name = _fileName(path);
+    final dot = name.lastIndexOf('.');
+    if (dot < 0 || dot == name.length - 1) {
+      return '';
+    }
+    return name.substring(dot + 1).toLowerCase();
+  }
+
+  String _baseName(String name) {
+    final dot = name.lastIndexOf('.');
+    return dot < 0 ? name : name.substring(0, dot);
+  }
+}
