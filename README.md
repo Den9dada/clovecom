@@ -185,6 +185,24 @@ powershell -ExecutionPolicy Bypass -File scripts/check_windows_release_dependenc
 flutter build windows --release
 ```
 
+然后可以使用一键脚本生成安装向导：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_installer_once.ps1
+```
+
+默认情况下，一键脚本不会执行 `flutter build windows --release`，只会复用现有 Release 产物。如果希望脚本连同 Flutter 构建一起执行，可以显式添加 `-Build`：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_installer_once.ps1 -Build
+```
+
+脚本会依次准备发布输入目录、检查 Windows 原生依赖、检查 Inno Setup 输入并编译安装包。输出文件位于：
+
+- `release_package/inno_output/CloveComSetup.exe`
+
+也可以分步执行下面的命令。
+
 然后生成共享发布输入目录，并检查 Windows 原生依赖：
 
 ```powershell
@@ -204,7 +222,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check_inno_setup_release.ps1
 powershell -ExecutionPolicy Bypass -File scripts/prepare_inno_setup_release.ps1
 ```
 
-输出文件位于：
+分步执行时，输出文件同样位于：
 
 - `release_package/inno_output/CloveComSetup.exe`
 

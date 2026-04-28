@@ -22,6 +22,7 @@ function Assert-FileContains {
 $iss = Join-Path $root 'installer/clovecom.iss'
 $checkScript = Join-Path $root 'scripts/check_inno_setup_release.ps1'
 $prepareScript = Join-Path $root 'scripts/prepare_inno_setup_release.ps1'
+$oneClickScript = Join-Path $root 'scripts/build_installer_once.ps1'
 $readme = Join-Path $root 'README.md'
 
 Assert-FileContains $iss 'ArchitecturesInstallIn64BitMode=x64compatible' 'installer must use x64-compatible install mode'
@@ -45,6 +46,16 @@ Assert-FileContains $prepareScript 'SkipCompile' 'prepare script must support va
 Assert-FileContains $prepareScript 'ISCC\.exe' 'prepare script must invoke Inno compiler'
 Assert-FileContains $prepareScript '\$checkFailed' 'prepare script must use PowerShell script error handling instead of raw LASTEXITCODE'
 
+Assert-FileContains $oneClickScript 'param\(' 'one-click script must declare parameters'
+Assert-FileContains $oneClickScript '\[switch\]\$Build' 'one-click script must make Flutter build opt-in'
+Assert-FileContains $oneClickScript 'prepare_enigma_release\.ps1' 'one-click script must prepare shared release input'
+Assert-FileContains $oneClickScript 'check_windows_release_dependencies\.ps1' 'one-click script must check native dependencies'
+Assert-FileContains $oneClickScript 'check_inno_setup_release\.ps1' 'one-click script must check Inno installer input'
+Assert-FileContains $oneClickScript 'prepare_inno_setup_release\.ps1' 'one-click script must compile the installer'
+Assert-FileContains $oneClickScript 'CloveComSetup\.exe' 'one-click script must print the generated installer path'
+Assert-FileContains $oneClickScript '一键生成 CloveCom 安装向导' 'one-click script must show Chinese progress text'
+
 Assert-FileContains $readme 'Windows 安装向导发布' 'README must document the Inno Setup workflow'
+Assert-FileContains $readme 'build_installer_once\.ps1' 'README must document the one-click installer script'
 
 Write-Host 'Inno Setup release checks passed.'
