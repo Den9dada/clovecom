@@ -14,6 +14,7 @@ void main() {
     expect(find.text('串口通信'), findsWidgets);
     expect(find.text('USB通信'), findsOneWidget);
     expect(find.text('网络通信'), findsOneWidget);
+    expect(find.text('工具箱'), findsOneWidget);
   });
 
   testWidgets('较矮窗口下数据发送区不会发生布局溢出', (WidgetTester tester) async {

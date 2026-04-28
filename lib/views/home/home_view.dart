@@ -1,7 +1,7 @@
 // 主页面视图文件
 //
 // 该文件实现了应用的主页面，采用TabBar进行模块切换。
-// 包含三个Tab页：串口通信、USB通信、网络通信。
+// 包含四个Tab页：串口通信、USB通信、网络通信、工具箱。
 //
 // 主要功能：
 // - 使用TabBar实现模块切换
@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import '../serial_port/serial_port_view.dart';
 import '../usb/usb_view.dart';
 import '../network/network_view.dart';
+import '../toolbox/toolbox_view.dart';
 
 /// 主页面视图组件
 ///
@@ -38,9 +39,9 @@ class _HomeViewState extends State<HomeView>
   @override
   void initState() {
     super.initState();
-    // 初始化Tab控制器，设置Tab数量为3
+    // 初始化Tab控制器，设置Tab数量为4
     // vsync参数用于动画同步，避免屏幕外动画消耗资源
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     // 监听Tab切换
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
@@ -127,6 +128,18 @@ class _HomeViewState extends State<HomeView>
                 ],
               ),
             ),
+            // 工具箱Tab
+            Tab(
+              height: 38,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.build_outlined, size: 16),
+                  SizedBox(width: 6),
+                  Text('工具箱'),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -141,6 +154,8 @@ class _HomeViewState extends State<HomeView>
           UsbView(),
           // 网络通信页面（预留）
           NetworkView(),
+          // 工具箱页面
+          ToolboxView(),
         ],
       ),
     );
