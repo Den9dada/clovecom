@@ -27,6 +27,11 @@ class HexToBinViewModel extends ChangeNotifier {
   bool get canExportCurrent => selectedEntry?.canExport ?? false;
   bool get canExportBatch => _entries.any((entry) => entry.canExport);
 
+  void clearError() {
+    _lastError = null;
+    notifyListeners();
+  }
+
   void selectEntry(int index) {
     if (index < 0 || index >= _entries.length) {
       return;
@@ -35,11 +40,32 @@ class HexToBinViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removeEntry(int index) {
+    if (index < 0 || index >= _entries.length) {
+      return;
+    }
+    _entries.removeAt(index);
+    if (_entries.isEmpty) {
+      _selectedIndex = -1;
+    } else if (_selectedIndex >= _entries.length) {
+      _selectedIndex = _entries.length - 1;
+    } else if (index < _selectedIndex) {
+      _selectedIndex--;
+    }
+    _lastError = null;
+    notifyListeners();
+  }
+
   void loadHexContent({
     required String name,
     required String path,
     required String content,
   }) {
+    if (_isDuplicatePath(path)) {
+      _lastError = '文件已导入: $name';
+      notifyListeners();
+      return;
+    }
     try {
       final parsed = IntelHexParser.parse(content);
       _entries.add(
@@ -77,6 +103,11 @@ class HexToBinViewModel extends ChangeNotifier {
     required String path,
     required List<int> bytes,
   }) {
+    if (_isDuplicatePath(path)) {
+      _lastError = '文件已导入: $name';
+      notifyListeners();
+      return;
+    }
     _entries.add(
       ToolboxFileEntry(
         name: name,
@@ -210,5 +241,10 @@ class HexToBinViewModel extends ChangeNotifier {
   String _baseName(String name) {
     final dot = name.lastIndexOf('.');
     return dot < 0 ? name : name.substring(0, dot);
+  }
+
+  bool _isDuplicatePath(String path) {
+    final normalized = path.toLowerCase();
+    return _entries.any((entry) => entry.path.toLowerCase() == normalized);
   }
 }

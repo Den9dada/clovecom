@@ -1,11 +1,9 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 
 class HexAsciiViewer extends StatelessWidget {
   const HexAsciiViewer({super.key, required this.bytes, this.baseAddress = 0});
 
-  final Uint8List bytes;
+  final List<int> bytes;
   final int baseAddress;
 
   static const int _bytesPerLine = 16;

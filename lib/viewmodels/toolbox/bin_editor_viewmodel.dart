@@ -23,6 +23,11 @@ class BinEditorViewModel extends ChangeNotifier {
   String? get lastError => _lastError;
   List<BinEditOperation> get history => List.unmodifiable(_history);
 
+  void clearError() {
+    _lastError = null;
+    notifyListeners();
+  }
+
   void loadBinBytes({
     required String name,
     required String path,

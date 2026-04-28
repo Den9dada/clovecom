@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,13 +7,31 @@ import '../widgets/file_drop_zone.dart';
 import '../widgets/hex_ascii_viewer.dart';
 import '../widgets/tool_status_panel.dart';
 
-class HexToBinTool extends StatelessWidget {
+class HexToBinTool extends StatefulWidget {
   const HexToBinTool({super.key});
 
   @override
+  State<HexToBinTool> createState() => _HexToBinToolState();
+}
+
+class _HexToBinToolState extends State<HexToBinTool>
+    with AutomaticKeepAliveClientMixin {
+  late final HexToBinViewModel _viewModel = HexToBinViewModel();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    _viewModel.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => HexToBinViewModel(),
+    super.build(context);
+    return ChangeNotifierProvider.value(
+      value: _viewModel,
       child: const _HexToBinToolContent(),
     );
   }
@@ -28,7 +44,7 @@ class _HexToBinToolContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final viewModel = context.watch<HexToBinViewModel>();
     final viewer = HexAsciiViewer(
-      bytes: Uint8List.fromList(viewModel.selectedBytes),
+      bytes: viewModel.selectedBytes,
       baseAddress: viewModel.selectedBaseAddress,
     );
 
@@ -40,7 +56,7 @@ class _HexToBinToolContent extends StatelessWidget {
         if (compact) {
           return Column(
             children: [
-              controls,
+              Expanded(child: controls),
               const SizedBox(height: 10),
               Expanded(child: viewer),
             ],
@@ -83,6 +99,8 @@ class _HexToBinToolContent extends StatelessWidget {
                   ? '等待导入文件'
                   : '已导入 ${viewModel.entries.length} 个文件',
               error: viewModel.lastError,
+              onDismissError: () =>
+                  context.read<HexToBinViewModel>().clearError(),
             ),
             const SizedBox(height: 10),
             Text('文件列表', style: Theme.of(context).textTheme.titleSmall),
@@ -184,6 +202,13 @@ class _HexToBinToolContent extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  onPressed: () =>
+                      context.read<HexToBinViewModel>().removeEntry(index),
+                  tooltip: '删除文件',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.close, size: 16),
                 ),
               ],
             ),

@@ -21,6 +21,11 @@ class BinLinkViewModel extends ChangeNotifier {
   String? get lastError => _lastError;
   bool get canExport => _segments.isNotEmpty && _lastError == null;
 
+  void clearError() {
+    _lastError = null;
+    notifyListeners();
+  }
+
   Future<void> importPaths(List<String> paths) async {
     for (final path in paths) {
       try {
@@ -45,17 +50,21 @@ class BinLinkViewModel extends ChangeNotifier {
       if (bytes.isEmpty) {
         throw const FormatException('手动 HEX 数据不能为空');
       }
-      _segments.add(
-        BinLinkSegment(
-          name: '手动HEX ${_segments.length + 1}',
-          address: address,
-          bytes: bytes,
-          isManual: true,
-        ),
-      );
+      if (!_replaceOverlappingSegment(address, bytes)) {
+        _segments.add(
+          BinLinkSegment(
+            name: '手动HEX ${_segments.length + 1}',
+            address: address,
+            bytes: bytes,
+            isManual: true,
+          ),
+        );
+      }
       _lastError = null;
     } catch (error) {
       _lastError = error.toString();
+      notifyListeners();
+      return;
     }
     _refreshPreview();
   }
@@ -70,6 +79,8 @@ class BinLinkViewModel extends ChangeNotifier {
       _lastError = null;
     } catch (error) {
       _lastError = error.toString();
+      notifyListeners();
+      return;
     }
     _refreshPreview();
   }
@@ -92,6 +103,8 @@ class BinLinkViewModel extends ChangeNotifier {
       _lastError = null;
     } catch (error) {
       _lastError = error.toString();
+      notifyListeners();
+      return;
     }
     _refreshPreview();
   }
@@ -137,4 +150,25 @@ class BinLinkViewModel extends ChangeNotifier {
   }
 
   String _fileNameFromPath(String path) => path.split(RegExp(r'[\\/]')).last;
+
+  bool _replaceOverlappingSegment(int address, List<int> bytes) {
+    final endAddress = address + bytes.length;
+    for (var index = 0; index < _segments.length; index++) {
+      final segment = _segments[index];
+      final fullyInside =
+          address >= segment.address && endAddress <= segment.endAddress;
+      if (!fullyInside) {
+        continue;
+      }
+
+      final updatedBytes = [...segment.bytes];
+      final start = address - segment.address;
+      for (var byteIndex = 0; byteIndex < bytes.length; byteIndex++) {
+        updatedBytes[start + byteIndex] = bytes[byteIndex];
+      }
+      _segments[index] = segment.copyWith(bytes: updatedBytes);
+      return true;
+    }
+    return false;
+  }
 }

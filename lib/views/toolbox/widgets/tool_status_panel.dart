@@ -6,11 +6,13 @@ class ToolStatusPanel extends StatelessWidget {
     required this.title,
     required this.message,
     this.error,
+    this.onDismissError,
   });
 
   final String title;
   final String message;
   final String? error;
+  final VoidCallback? onDismissError;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +57,15 @@ class ToolStatusPanel extends StatelessWidget {
               ],
             ),
           ),
+          if (hasError && onDismissError != null) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: onDismissError,
+              tooltip: '关闭错误提示',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close, size: 16),
+            ),
+          ],
         ],
       ),
     );

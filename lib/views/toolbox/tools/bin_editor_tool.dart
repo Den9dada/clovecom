@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,13 +6,31 @@ import '../widgets/file_drop_zone.dart';
 import '../widgets/hex_ascii_viewer.dart';
 import '../widgets/tool_status_panel.dart';
 
-class BinEditorTool extends StatelessWidget {
+class BinEditorTool extends StatefulWidget {
   const BinEditorTool({super.key});
 
   @override
+  State<BinEditorTool> createState() => _BinEditorToolState();
+}
+
+class _BinEditorToolState extends State<BinEditorTool>
+    with AutomaticKeepAliveClientMixin {
+  late final BinEditorViewModel _viewModel = BinEditorViewModel();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    _viewModel.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => BinEditorViewModel(),
+    super.build(context);
+    return ChangeNotifierProvider.value(
+      value: _viewModel,
       child: const _BinEditorToolContent(),
     );
   }
@@ -43,7 +59,7 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<BinEditorViewModel>();
-    final viewer = HexAsciiViewer(bytes: Uint8List.fromList(viewModel.bytes));
+    final viewer = HexAsciiViewer(bytes: viewModel.bytes);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -53,7 +69,7 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
         if (compact) {
           return Column(
             children: [
-              controls,
+              Expanded(child: controls),
               const SizedBox(height: 10),
               Expanded(child: viewer),
             ],
@@ -96,6 +112,8 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
                   ? '${viewModel.fileName} · ${viewModel.bytes.length} B${viewModel.hasUnsavedChanges ? ' · 未保存' : ''}'
                   : '等待导入 BIN 文件',
               error: viewModel.lastError,
+              onDismissError: () =>
+                  context.read<BinEditorViewModel>().clearError(),
             ),
             const SizedBox(height: 10),
             Text('编辑操作', style: Theme.of(context).textTheme.titleSmall),

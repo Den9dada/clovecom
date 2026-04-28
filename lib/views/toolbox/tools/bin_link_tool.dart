@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,13 +6,31 @@ import '../widgets/file_drop_zone.dart';
 import '../widgets/hex_ascii_viewer.dart';
 import '../widgets/tool_status_panel.dart';
 
-class BinLinkTool extends StatelessWidget {
+class BinLinkTool extends StatefulWidget {
   const BinLinkTool({super.key});
 
   @override
+  State<BinLinkTool> createState() => _BinLinkToolState();
+}
+
+class _BinLinkToolState extends State<BinLinkTool>
+    with AutomaticKeepAliveClientMixin {
+  late final BinLinkViewModel _viewModel = BinLinkViewModel();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    _viewModel.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => BinLinkViewModel(),
+    super.build(context);
+    return ChangeNotifierProvider.value(
+      value: _viewModel,
       child: const _BinLinkToolContent(),
     );
   }
@@ -46,7 +62,7 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
   Widget build(BuildContext context) {
     final viewModel = context.watch<BinLinkViewModel>();
     final viewer = HexAsciiViewer(
-      bytes: Uint8List.fromList(viewModel.previewBytes),
+      bytes: viewModel.previewBytes,
       baseAddress: viewModel.previewBaseAddress,
     );
 
@@ -58,7 +74,7 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
         if (compact) {
           return Column(
             children: [
-              controls,
+              Expanded(child: controls),
               const SizedBox(height: 10),
               Expanded(child: viewer),
             ],
@@ -101,6 +117,8 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
                   ? '等待添加片段'
                   : '已添加 ${viewModel.segments.length} 个片段',
               error: viewModel.lastError,
+              onDismissError: () =>
+                  context.read<BinLinkViewModel>().clearError(),
             ),
             const SizedBox(height: 10),
             TextField(
