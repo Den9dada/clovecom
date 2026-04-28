@@ -48,6 +48,7 @@ Assert-FileContains $utilsCpp 'SetCurrentDirectoryW' 'utils.cpp must set the cur
 Assert-FileContains $utilsCpp 'LogStartupEvent' 'utils.cpp must write startup trace entries'
 Assert-FileContains $utilsCpp 'MessageBoxW' 'utils.cpp must show a visible startup error when Flutter files are missing'
 Assert-FileContains $utilsCpp 'clovecom_startup_error\.log' 'utils.cpp must write a startup diagnostic log'
+Assert-FileContains $utilsCpp 'kernel_blob\.bin' 'utils.cpp must accept Flutter debug runtime kernel_blob.bin when app.so is absent'
 Assert-FileContains $mainCpp 'LogStartupEvent\(L"wWinMain entered"\);' 'main.cpp must log as soon as wWinMain starts'
 Assert-FileContains $mainCpp 'SetCurrentDirectoryToExecutablePath\(\);' 'main.cpp must call startup directory helper'
 Assert-FileContains $mainCpp 'ValidateFlutterRuntimeFiles\(\)' 'main.cpp must validate Flutter runtime files before startup'

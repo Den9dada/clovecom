@@ -20,6 +20,10 @@ std::wstring GetStartupLogPath() {
   return L"clovecom_startup_error.log";
 }
 
+bool PathExists(const wchar_t* path) {
+  return ::GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
+}
+
 }  // namespace
 
 void CreateAndAttachConsole() {
@@ -70,17 +74,21 @@ bool ValidateFlutterRuntimeFiles() {
       L"flutter_windows.dll",
       L"native_assets.json",
       L"data",
-      L"data\\app.so",
       L"data\\icudtl.dat",
       L"data\\flutter_assets",
   };
 
   std::wstringstream missing;
   for (const wchar_t* path : required_paths) {
-    DWORD attributes = ::GetFileAttributesW(path);
-    if (attributes == INVALID_FILE_ATTRIBUTES) {
+    if (!PathExists(path)) {
       missing << L" - " << path << L"\r\n";
     }
+  }
+
+  if (!PathExists(L"data\\app.so") &&
+      !PathExists(L"data\\flutter_assets\\kernel_blob.bin")) {
+    missing << L" - data\\app.so or data\\flutter_assets\\kernel_blob.bin"
+            << L"\r\n";
   }
 
   std::wstring missing_text = missing.str();
