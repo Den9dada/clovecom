@@ -17,7 +17,7 @@ class BinEditorViewModel extends ChangeNotifier {
 
   String get fileName => _fileName;
   String get filePath => _filePath;
-  List<int> get bytes => List.unmodifiable(_bytes);
+  List<int> get bytes => _bytes;
   bool get hasFile => _fileName.isNotEmpty;
   bool get hasUnsavedChanges => _hasUnsavedChanges;
   String? get lastError => _lastError;
@@ -104,6 +104,25 @@ class BinEditorViewModel extends ChangeNotifier {
           type: BinEditOperationType.delete,
           address: address,
           length: length,
+          previousBytes: previous,
+        ),
+      );
+    });
+  }
+
+  void replaceByte(int index, String hexText) {
+    _applyEdit(() {
+      final bytes = HexTextParser.parseBytes(hexText);
+      if (bytes.length != 1) {
+        throw const FormatException('请输入 1 个字节');
+      }
+      final previous = [..._bytes];
+      _bytes = BinEditorService.replaceBytes(_bytes, index, bytes);
+      _history.add(
+        BinEditOperation(
+          type: BinEditOperationType.replace,
+          address: index,
+          length: 1,
           previousBytes: previous,
         ),
       );

@@ -16,7 +16,7 @@ class BinLinkViewModel extends ChangeNotifier {
   List<BinLinkSegment> get segments => List.unmodifiable(_segments);
   int get fillByte => _fillByte;
   String get fillByteHex => HexTextParser.formatHexByte(_fillByte);
-  List<int> get previewBytes => List.unmodifiable(_preview.bytes);
+  List<int> get previewBytes => _preview.bytes;
   int get previewBaseAddress => _preview.baseAddress;
   String? get lastError => _lastError;
   bool get canExport => _segments.isNotEmpty && _lastError == null;

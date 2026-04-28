@@ -5,10 +5,16 @@ import 'package:flutter/material.dart';
 import '../../../services/toolbox/hex_ascii_line_formatter.dart';
 
 class HexAsciiViewer extends StatefulWidget {
-  const HexAsciiViewer({super.key, required this.bytes, this.baseAddress = 0});
+  const HexAsciiViewer({
+    super.key,
+    required this.bytes,
+    this.baseAddress = 0,
+    this.onByteChanged,
+  });
 
   final List<int> bytes;
   final int baseAddress;
+  final void Function(int index, int value)? onByteChanged;
 
   @override
   State<HexAsciiViewer> createState() => _HexAsciiViewerState();
@@ -21,12 +27,16 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
 
   final LinkedHashMap<int, HexAsciiLine> _lineCache = LinkedHashMap();
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _editController = TextEditingController();
   List<int>? _lastBytes;
   int? _lastBaseAddress;
+  int? _hoveredByteIndex;
+  int? _editingByteIndex;
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _editController.dispose();
     super.dispose();
   }
 
@@ -87,10 +97,14 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
                       primary: false,
                       itemExtent: _lineExtent,
                       cacheExtent: _lineExtent * 32,
-                      itemCount:
-                          (widget.bytes.length / _bytesPerLine).ceil(),
+                      itemCount: (widget.bytes.length / _bytesPerLine).ceil(),
                       itemBuilder: (context, index) {
                         final line = _lineFor(index);
+                        final start = index * _bytesPerLine;
+                        final end = (start + _bytesPerLine).clamp(
+                          0,
+                          widget.bytes.length,
+                        );
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Row(
@@ -102,7 +116,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text(line.hex, style: _mono(context)),
+                                child: _buildHexCells(context, start, end),
                               ),
                               const SizedBox(width: 12),
                               SizedBox(
@@ -141,6 +155,106 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
       _lineCache.remove(_lineCache.keys.first);
     }
     return line;
+  }
+
+  Widget _buildHexCells(BuildContext context, int start, int end) {
+    return Row(
+      children: [
+        for (var index = start; index < end; index++) ...[
+          _buildByteCell(context, index),
+          if (index < end - 1) const SizedBox(width: 4),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildByteCell(BuildContext context, int index) {
+    final editable = widget.onByteChanged != null;
+    final hovered = _hoveredByteIndex == index;
+    final editing = _editingByteIndex == index;
+    final colorScheme = Theme.of(context).colorScheme;
+    final hex = _hexByte(widget.bytes[index]);
+
+    final child = editing
+        ? SizedBox(
+            width: 28,
+            height: 20,
+            child: TextField(
+              controller: _editController,
+              autofocus: true,
+              maxLength: 2,
+              textAlign: TextAlign.center,
+              textInputAction: TextInputAction.done,
+              style: _mono(context),
+              decoration: const InputDecoration(
+                counterText: '',
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
+              ),
+              onSubmitted: (_) => _commitEdit(index),
+            ),
+          )
+        : Text(hex, style: _mono(context));
+
+    return MouseRegion(
+      cursor: editable ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: editable
+          ? (_) => setState(() => _hoveredByteIndex = index)
+          : null,
+      onExit: editable
+          ? (_) {
+              if (_hoveredByteIndex == index) {
+                setState(() => _hoveredByteIndex = null);
+              }
+            }
+          : null,
+      child: GestureDetector(
+        onTap: editable ? () => _startEdit(index) : null,
+        child: Container(
+          key: ValueKey('hex-byte-$index-${hovered ? 'hovered' : 'normal'}'),
+          width: 30,
+          height: 20,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: hovered || editing
+                ? colorScheme.primaryContainer.withValues(alpha: 0.42)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: hovered || editing
+                  ? colorScheme.primary
+                  : Colors.transparent,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  void _startEdit(int index) {
+    _editController.text = _hexByte(widget.bytes[index]);
+    _editController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _editController.text.length,
+    );
+    setState(() => _editingByteIndex = index);
+  }
+
+  void _commitEdit(int index) {
+    final text = _editController.text.trim();
+    if (!RegExp(r'^[0-9a-fA-F]{2}$').hasMatch(text)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入 2 位 HEX 字节')));
+      return;
+    }
+    widget.onByteChanged?.call(index, int.parse(text, radix: 16));
+    setState(() => _editingByteIndex = null);
+  }
+
+  String _hexByte(int byte) {
+    return (byte & 0xFF).toRadixString(16).padLeft(2, '0').toUpperCase();
   }
 
   TextStyle _mono(BuildContext context) {

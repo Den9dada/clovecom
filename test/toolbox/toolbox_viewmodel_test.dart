@@ -66,6 +66,24 @@ void main() {
     expect(viewModel.hasUnsavedChanges, isFalse);
   });
 
+  test('bin editor replaces a single preview byte and supports undo', () {
+    final viewModel = BinEditorViewModel();
+
+    viewModel.loadBinBytes(
+      name: 'app.bin',
+      path: r'C:\temp\app.bin',
+      bytes: [0x01, 0x02, 0x03],
+    );
+    viewModel.replaceByte(1, 'AA');
+
+    expect(viewModel.bytes, [0x01, 0xAA, 0x03]);
+    expect(viewModel.hasUnsavedChanges, isTrue);
+
+    viewModel.undoLast();
+
+    expect(viewModel.bytes, [0x01, 0x02, 0x03]);
+  });
+
   test('bin link view model previews manual hex segments with fill byte', () {
     final viewModel = BinLinkViewModel();
 

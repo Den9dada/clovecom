@@ -59,7 +59,16 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<BinEditorViewModel>();
-    final viewer = HexAsciiViewer(bytes: viewModel.bytes);
+    final viewer = HexAsciiViewer(
+      bytes: viewModel.bytes,
+      onByteChanged: (index, value) {
+        context.read<BinEditorViewModel>().replaceByte(
+          index,
+          value.toRadixString(16).padLeft(2, '0'),
+        );
+        _showError(context);
+      },
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {

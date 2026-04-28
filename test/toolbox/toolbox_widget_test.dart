@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:clovecom/views/toolbox/toolbox_view.dart';
 import 'package:clovecom/views/toolbox/widgets/hex_ascii_viewer.dart';
@@ -29,8 +30,64 @@ void main() {
     );
 
     expect(find.text('00000000'), findsOneWidget);
-    expect(find.textContaining('41 00 7A'), findsOneWidget);
+    expect(find.text('41'), findsOneWidget);
+    expect(find.text('00'), findsOneWidget);
+    expect(find.text('7A'), findsOneWidget);
     expect(find.textContaining('A.z'), findsOneWidget);
+  });
+
+  testWidgets('hex ascii viewer edits a byte when editing is enabled', (
+    tester,
+  ) async {
+    var editedIndex = -1;
+    var editedValue = -1;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HexAsciiViewer(
+            bytes: const [0x01, 0x02],
+            onByteChanged: (index, value) {
+              editedIndex = index;
+              editedValue = value;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('02'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'AA');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(editedIndex, 1);
+    expect(editedValue, 0xAA);
+  });
+
+  testWidgets('hex ascii viewer highlights hovered editable byte', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HexAsciiViewer(
+            bytes: const [0x01, 0x02],
+            onByteChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('02')));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('hex-byte-1-hovered')), findsOneWidget);
+
+    await gesture.removePointer();
   });
 
   testWidgets('toolbox keeps tool state when switching tabs', (tester) async {
