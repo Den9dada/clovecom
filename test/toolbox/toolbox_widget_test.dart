@@ -30,9 +30,7 @@ void main() {
     );
 
     expect(find.text('00000000'), findsOneWidget);
-    expect(find.text('41'), findsOneWidget);
-    expect(find.text('00'), findsOneWidget);
-    expect(find.text('7A'), findsOneWidget);
+    expect(find.textContaining('41 00 7A'), findsOneWidget);
     expect(find.textContaining('A.z'), findsOneWidget);
   });
 
@@ -56,7 +54,8 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('02'));
+    final rowStart = tester.getTopLeft(find.textContaining('01 02'));
+    await tester.tapAt(rowStart + const Offset(34, 10));
     await tester.pump();
     await tester.enterText(find.byType(TextField), 'AA');
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -82,12 +81,31 @@ void main() {
 
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer();
-    await gesture.moveTo(tester.getCenter(find.text('02')));
+    final rowStart = tester.getTopLeft(find.textContaining('01 02'));
+    await gesture.moveTo(rowStart + const Offset(34, 10));
     await tester.pump();
 
     expect(find.byKey(const ValueKey('hex-byte-1-hovered')), findsOneWidget);
 
     await gesture.removePointer();
+  });
+
+  testWidgets('editable hex ascii viewer keeps inactive rows lightweight', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HexAsciiViewer(
+            bytes: List<int>.generate(32, (index) => index),
+            onByteChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('00 01 02 03'), findsOneWidget);
+    expect(find.byKey(const ValueKey('hex-byte-0-normal')), findsNothing);
   });
 
   testWidgets('toolbox keeps tool state when switching tabs', (tester) async {

@@ -24,6 +24,8 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   static const int _bytesPerLine = 16;
   static const double _lineExtent = 22;
   static const int _maxCachedLines = 4096;
+  static const double _hexCellWidth = 26;
+  static const double _hexCellGap = 3;
 
   final LinkedHashMap<int, HexAsciiLine> _lineCache = LinkedHashMap();
   final ScrollController _scrollController = ScrollController();
@@ -116,7 +118,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _buildHexCells(context, start, end),
+                                child: _buildHexArea(context, line, start, end),
                               ),
                               const SizedBox(width: 12),
                               SizedBox(
@@ -157,19 +159,62 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
     return line;
   }
 
+  Widget _buildHexArea(
+    BuildContext context,
+    HexAsciiLine line,
+    int start,
+    int end,
+  ) {
+    final editable = widget.onByteChanged != null;
+    if (!editable) {
+      return Text(line.hex, style: _mono(context));
+    }
+
+    final active =
+        _containsIndex(start, end, _hoveredByteIndex) ||
+        _containsIndex(start, end, _editingByteIndex);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onHover: (event) {
+        final index = _byteIndexForDx(event.localPosition.dx, start, end);
+        if (_hoveredByteIndex != index) {
+          setState(() => _hoveredByteIndex = index);
+        }
+      },
+      onExit: (_) {
+        if (_containsIndex(start, end, _hoveredByteIndex)) {
+          setState(() => _hoveredByteIndex = null);
+        }
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (details) {
+          final index = _byteIndexForDx(details.localPosition.dx, start, end);
+          if (index != null) {
+            _startEdit(index);
+          }
+        },
+        child: active
+            ? _buildHexCells(context, start, end)
+            : Text(line.hex, style: _mono(context)),
+      ),
+    );
+  }
+
   Widget _buildHexCells(BuildContext context, int start, int end) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         for (var index = start; index < end; index++) ...[
           _buildByteCell(context, index),
-          if (index < end - 1) const SizedBox(width: 4),
+          if (index < end - 1) const SizedBox(width: _hexCellGap),
         ],
       ],
     );
   }
 
   Widget _buildByteCell(BuildContext context, int index) {
-    final editable = widget.onByteChanged != null;
     final hovered = _hoveredByteIndex == index;
     final editing = _editingByteIndex == index;
     final colorScheme = Theme.of(context).colorScheme;
@@ -197,22 +242,18 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
         : Text(hex, style: _mono(context));
 
     return MouseRegion(
-      cursor: editable ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: editable
-          ? (_) => setState(() => _hoveredByteIndex = index)
-          : null,
-      onExit: editable
-          ? (_) {
-              if (_hoveredByteIndex == index) {
-                setState(() => _hoveredByteIndex = null);
-              }
-            }
-          : null,
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hoveredByteIndex = index),
+      onExit: (_) {
+        if (_hoveredByteIndex == index) {
+          setState(() => _hoveredByteIndex = null);
+        }
+      },
       child: GestureDetector(
-        onTap: editable ? () => _startEdit(index) : null,
+        onTap: () => _startEdit(index),
         child: Container(
           key: ValueKey('hex-byte-$index-${hovered ? 'hovered' : 'normal'}'),
-          width: 30,
+          width: _hexCellWidth,
           height: 20,
           alignment: Alignment.center,
           decoration: BoxDecoration(
@@ -230,6 +271,26 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
         ),
       ),
     );
+  }
+
+  bool _containsIndex(int start, int end, int? index) {
+    return index != null && index >= start && index < end;
+  }
+
+  int? _byteIndexForDx(double dx, int start, int end) {
+    if (dx < 0) {
+      return null;
+    }
+    final slot = dx ~/ (_hexCellWidth + _hexCellGap);
+    final index = start + slot;
+    if (index >= end) {
+      return null;
+    }
+    final slotStart = slot * (_hexCellWidth + _hexCellGap);
+    if (dx > slotStart + _hexCellWidth) {
+      return null;
+    }
+    return index;
   }
 
   void _startEdit(int index) {
