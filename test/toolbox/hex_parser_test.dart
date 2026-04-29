@@ -35,6 +35,18 @@ void main() {
     expect(result.bytes, [0xAA, 0xBB]);
   });
 
+  test('ignores start linear address records', () {
+    final result = IntelHexParser.parse('''
+:020000040800F2
+:02000000AABB99
+:040000050800019559
+:00000001FF
+''');
+
+    expect(result.baseAddress, 0x08000000);
+    expect(result.bytes, [0xAA, 0xBB]);
+  });
+
   test('rejects checksum errors', () {
     expect(
       () => IntelHexParser.parse(':020000000102FC\n:00000001FF'),

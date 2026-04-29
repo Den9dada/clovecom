@@ -76,6 +76,10 @@ class IntelHexParser {
             throw FormatException('扩展线性地址记录长度错误', line, lineNumber);
           }
           extendedBase = ((data[0] << 8) | data[1]) << 16;
+        case 0x05:
+          if (byteCount != 4) {
+            throw FormatException('起始线性地址记录长度错误', line, lineNumber);
+          }
         default:
           throw FormatException('不支持的 HEX 记录类型', line, lineNumber);
       }
