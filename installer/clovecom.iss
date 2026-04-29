@@ -93,7 +93,6 @@ begin
     AddMissingFile(Missing, 'msvcp140.dll');
     AddMissingFile(Missing, 'vcruntime140.dll');
     AddMissingFile(Missing, 'vcruntime140_1.dll');
-    AddMissingFile(Missing, 'ucrtbase.dll');
 
     if Missing <> '' then
     begin

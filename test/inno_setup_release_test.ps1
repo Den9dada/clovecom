@@ -19,6 +19,23 @@ function Assert-FileContains {
   }
 }
 
+function Assert-FileNotContains {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Pattern,
+    [Parameter(Mandatory = $true)][string]$Message
+  )
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    throw "Missing file: $Path"
+  }
+
+  $content = Get-Content -LiteralPath $Path -Raw
+  if ($content -match $Pattern) {
+    throw $Message
+  }
+}
+
 $iss = Join-Path $root 'installer/clovecom.iss'
 $checkScript = Join-Path $root 'scripts/check_inno_setup_release.ps1'
 $prepareScript = Join-Path $root 'scripts/prepare_inno_setup_release.ps1'
@@ -35,10 +52,12 @@ Assert-FileContains $iss '请先关闭 CloveCom' 'installer must warn when app a
 Assert-FileContains $iss 'install_check\.log' 'installer must write post-install check log'
 Assert-FileContains $iss 'data\\app\.so' 'installer must verify Flutter app.so'
 Assert-FileContains $iss 'vcruntime140_1\.dll' 'installer must verify VC++ runtime files'
+Assert-FileNotContains $iss 'ucrtbase\.dll' 'installer must not verify app-local UCRT files'
 
 Assert-FileContains $checkScript 'release_package/enigma_input' 'check script must validate Inno input directory'
 Assert-FileContains $checkScript 'ISCC\.exe' 'check script must report Inno compiler availability'
 Assert-FileContains $checkScript 'clovecom\.iss' 'check script must inspect the Inno project'
+Assert-FileNotContains $checkScript 'ucrtbase\.dll' 'check script must not require app-local UCRT files'
 
 Assert-FileContains $prepareScript 'param\(' 'prepare script must declare parameters'
 Assert-FileContains $prepareScript 'PrepareInput' 'prepare script must optionally prepare shared input'
@@ -55,7 +74,7 @@ Assert-FileContains $oneClickScript 'prepare_inno_setup_release\.ps1' 'one-click
 Assert-FileContains $oneClickScript 'CloveComSetup\.exe' 'one-click script must print the generated installer path'
 Assert-FileContains $oneClickScript '一键生成 CloveCom 安装向导' 'one-click script must show Chinese progress text'
 
-Assert-FileContains $readme 'Windows 安装向导发布' 'README must document the Inno Setup workflow'
+Assert-FileContains $readme 'Windows 发布与交付' 'README must document the Windows release workflow'
 Assert-FileContains $readme 'build_installer_once\.ps1' 'README must document the one-click installer script'
 
 Write-Host 'Inno Setup release checks passed.'

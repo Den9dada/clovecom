@@ -58,8 +58,7 @@ $requiredInput = @(
   'data/flutter_assets',
   'msvcp140.dll',
   'vcruntime140.dll',
-  'vcruntime140_1.dll',
-  'ucrtbase.dll'
+  'vcruntime140_1.dll'
 )
 
 foreach ($relativePath in $requiredInput) {

@@ -19,6 +19,23 @@ function Assert-FileContains {
   }
 }
 
+function Assert-FileNotContains {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Pattern,
+    [Parameter(Mandatory = $true)][string]$Message
+  )
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    throw "Missing file: $Path"
+  }
+
+  $content = Get-Content -LiteralPath $Path -Raw
+  if ($content -match $Pattern) {
+    throw $Message
+  }
+}
+
 $prepareScript = Join-Path $root 'scripts/prepare_enigma_release.ps1'
 $checkScript = Join-Path $root 'scripts/check_windows_release_dependencies.ps1'
 $mainCpp = Join-Path $root 'windows/runner/main.cpp'
@@ -31,15 +48,18 @@ Assert-FileContains $prepareScript 'if \(\$Build\)' 'prepare script must not bui
 Assert-FileContains $prepareScript 'flutter build windows --release' 'prepare script must support an explicit Windows release build'
 Assert-FileContains $prepareScript 'msvcp140\.dll' 'prepare script must copy MSVCP140.dll'
 Assert-FileContains $prepareScript 'vcruntime140_1\.dll' 'prepare script must copy VCRUNTIME140_1.dll'
-Assert-FileContains $prepareScript 'ucrtbase\.dll' 'prepare script must copy UCRT runtime files when available'
-Assert-FileContains $prepareScript 'api-ms-win-crt-\*\.dll' 'prepare script must copy API-MS CRT forwarder DLLs when available'
+Assert-FileNotContains $prepareScript 'optionalRuntimeDlls' 'prepare script must not copy optional VC++ runtime DLLs'
+Assert-FileNotContains $prepareScript 'ucrtbase\.dll' 'prepare script must not copy UCRT runtime files'
+Assert-FileNotContains $prepareScript 'api-ms-win-crt-\*\.dll' 'prepare script must not copy API-MS CRT forwarder DLLs'
 Assert-FileContains $prepareScript 'EnigmaVirtualBox' 'prepare script must generate an Enigma project'
 Assert-FileContains $prepareScript 'enigma_input' 'prepare script must stage files in release_package/enigma_input'
+Assert-FileContains $prepareScript 'appBundleDlls' 'prepare script must include Flutter plugin DLLs in the Enigma project'
 
 Assert-FileContains $checkScript '/DEPENDENTS' 'dependency script must inspect native dependencies'
 Assert-FileContains $checkScript 'flutter_windows\.dll' 'dependency script must require flutter_windows.dll'
+Assert-FileContains $checkScript 'desktop_drop_plugin\.dll' 'dependency script must classify Flutter plugin DLLs as app-local'
 Assert-FileContains $checkScript 'MSVCP140\.dll' 'dependency script must classify MSVCP140.dll as app-local'
-Assert-FileContains $checkScript 'api-ms-win-crt-' 'dependency script must account for UCRT dependencies'
+Assert-FileNotContains $checkScript 'ucrtbase\.dll' 'dependency script must not require app-local UCRT files'
 
 Assert-FileContains $utilsH 'SetCurrentDirectoryToExecutablePath' 'utils.h must declare startup directory helper'
 Assert-FileContains $utilsH 'LogStartupEvent' 'utils.h must declare startup logging helper'

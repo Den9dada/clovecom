@@ -55,21 +55,17 @@ $systemDlls = @(
 )
 
 $appLocalDlls = @(
+  'desktop_drop_plugin.dll',
   'flutter_windows.dll',
   'MSVCP140.dll',
   'VCRUNTIME140.dll',
-  'VCRUNTIME140_1.dll',
-  'ucrtbase.dll'
+  'VCRUNTIME140_1.dll'
 )
 
 $missing = New-Object System.Collections.Generic.List[string]
 
 foreach ($dependency in $dependencies) {
   if ($dependency -like 'api-ms-win-crt-*.dll') {
-    $path = Join-Path $inputDir $dependency
-    if (-not (Test-Path -LiteralPath $path)) {
-      $missing.Add($dependency)
-    }
     continue
   }
 
