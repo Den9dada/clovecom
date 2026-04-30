@@ -60,10 +60,11 @@ class HexToBinViewModel extends ChangeNotifier {
     required String name,
     required String path,
     required String content,
+    bool notify = true,
   }) {
     if (_isDuplicatePath(path)) {
       _lastError = '文件已导入: $name';
-      notifyListeners();
+      if (notify) notifyListeners();
       return;
     }
     try {
@@ -95,17 +96,18 @@ class HexToBinViewModel extends ChangeNotifier {
       _selectedIndex = _entries.length - 1;
       _lastError = '解析 $name 失败: $error';
     }
-    notifyListeners();
+    if (notify) notifyListeners();
   }
 
   void loadBinBytes({
     required String name,
     required String path,
     required List<int> bytes,
+    bool notify = true,
   }) {
     if (_isDuplicatePath(path)) {
       _lastError = '文件已导入: $name';
-      notifyListeners();
+      if (notify) notifyListeners();
       return;
     }
     _entries.add(
@@ -120,7 +122,7 @@ class HexToBinViewModel extends ChangeNotifier {
     );
     _selectedIndex = _entries.length - 1;
     _lastError = null;
-    notifyListeners();
+    if (notify) notifyListeners();
   }
 
   Future<void> importPaths(List<String> paths) async {
@@ -133,16 +135,17 @@ class HexToBinViewModel extends ChangeNotifier {
             name: name,
             path: path,
             content: await File(path).readAsString(),
+            notify: false,
           );
         } else if (extension == 'bin') {
           loadBinBytes(
             name: name,
             path: path,
             bytes: await File(path).readAsBytes(),
+            notify: false,
           );
         } else {
           _lastError = '不支持的文件类型: $name';
-          notifyListeners();
         }
       } catch (error) {
         _entries.add(
@@ -156,9 +159,9 @@ class HexToBinViewModel extends ChangeNotifier {
           ),
         );
         _lastError = '读取 $name 失败: $error';
-        notifyListeners();
       }
     }
+    notifyListeners();
   }
 
   Future<void> exportCurrent() async {

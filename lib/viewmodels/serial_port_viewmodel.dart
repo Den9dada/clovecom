@@ -1,5 +1,5 @@
 // 串口通信视图模型文件
-// 
+//
 // 该文件实现了串口通信的业务逻辑，采用MVVM架构中的ViewModel层。
 // 负责处理串口的打开、关闭、数据发送和接收等操作，并管理相关状态。
 
@@ -20,59 +20,64 @@ import '../protocols/protocol_registry.dart';
 
 /// 串口通信视图模型类
 class SerialPortViewModel extends ChangeNotifier {
+  static const int _maxMessages = 5000;
+  static const int _messagePruneCount = 1000;
+  static const Duration _batchNotifyInterval = Duration(milliseconds: 50);
+
   /// 串口配置对象
   SerialPortConfig _config = SerialPortConfig(portName: '');
-  
+
   /// 串口状态对象
   SerialPortState _state = SerialPortState();
-  
+
   /// 消息列表
   final List<SerialPortMessage> _messages = [];
-  
+
   /// 串口对象实例
   SerialPort? _serialPort;
 
   /// 读取流订阅
   StreamSubscription<Uint8List>? _readStreamSub;
-  
+
   /// 可用串口列表
   List<PortDetailInfo> _availablePorts = [];
-  
+
   /// 通信统计数据
   CommunicationStats _stats = CommunicationStats();
-  
+
   /// 发送模式
   SendMode _sendMode = SendMode.text;
-  
+
   /// 显示配置
   DisplayConfig _displayConfig = DisplayConfig();
-  
+
   /// 文件发送配置
   FileSendConfig _fileSendConfig = FileSendConfig();
-  
+
   /// 文件发送定时器
   Timer? _fileSendTimer;
-  
+
   /// 循环发送定时器
   Timer? _loopSendTimer;
-  
+
   /// 文件数据缓存
   List<int> _fileData = [];
-  
+
   /// 循环发送的数据
   String _loopSendData = '';
-  
+
   /// 循环发送是否使用HEX
   bool _loopSendIsHex = false;
-  
+
   /// 日志文件
   File? _logFile;
-  
+
   /// 错误信息
   String? _errorMessage;
 
   /// 错误通知流（用于 SnackBar 弹窗）
-  final StreamController<String> _errorController = StreamController<String>.broadcast();
+  final StreamController<String> _errorController =
+      StreamController<String>.broadcast();
 
   /// 固件升级配置
   FirmwareUpgradeConfig _firmwareConfig = FirmwareUpgradeConfig();
@@ -100,6 +105,10 @@ class SerialPortViewModel extends ChangeNotifier {
 
   /// 错误码
   Pointer<DWORD>? _readErrors;
+
+  /// 批量通知：积累的接收数据量
+  Timer? _batchNotifyTimer;
+  bool _batchNotifyScheduled = false;
 
   // Getters
   SerialPortConfig get config => _config;
@@ -132,22 +141,30 @@ class SerialPortViewModel extends ChangeNotifier {
   void refreshPorts() {
     try {
       final portInfoList = SerialPort.getPortsWithFullMessages();
-      _availablePorts = portInfoList.map((info) => PortDetailInfo(
-        portName: info.portName,
-        friendlyName: info.friendlyName,
-        hardwareID: info.hardwareID,
-        manufactureName: info.manufactureName,
-      )).toList();
+      _availablePorts = portInfoList
+          .map(
+            (info) => PortDetailInfo(
+              portName: info.portName,
+              friendlyName: info.friendlyName,
+              hardwareID: info.hardwareID,
+              manufactureName: info.manufactureName,
+            ),
+          )
+          .toList();
       notifyListeners();
     } catch (e) {
       try {
         final ports = SerialPort.getAvailablePorts();
-        _availablePorts = ports.map((port) => PortDetailInfo(
-          portName: port,
-          friendlyName: '',
-          hardwareID: '',
-          manufactureName: '',
-        )).toList();
+        _availablePorts = ports
+            .map(
+              (port) => PortDetailInfo(
+                portName: port,
+                friendlyName: '',
+                hardwareID: '',
+                manufactureName: '',
+              ),
+            )
+            .toList();
         notifyListeners();
       } catch (e) {
         debugPrint('刷新串口列表失败: $e');
@@ -204,19 +221,19 @@ class SerialPortViewModel extends ChangeNotifier {
       appendCR: appendCR,
       appendLF: appendLF,
     );
-    
+
     // 处理循环发送
     if (loopSend == true) {
       _startLoopSend();
     } else if (loopSend == false) {
       _stopLoopSend();
     }
-    
+
     // 处理保存为文件
     if (saveToFile == true) {
       _initLogFile();
     }
-    
+
     notifyListeners();
   }
 
@@ -231,7 +248,9 @@ class SerialPortViewModel extends ChangeNotifier {
   String convertTextToHex(String text) {
     if (text.isEmpty) return '';
     final bytes = utf8.encode(text);
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(' ');
+    return bytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+        .join(' ');
   }
 
   /// 将HEX字符串还原为文本
@@ -241,7 +260,10 @@ class SerialPortViewModel extends ChangeNotifier {
     if (hex.trim().isEmpty) return '';
     try {
       final cleanHex = hex.trim().replaceAll(RegExp(r'[^0-9a-fA-F\s]'), '');
-      final parts = cleanHex.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      final parts = cleanHex
+          .split(RegExp(r'\s+'))
+          .where((p) => p.isNotEmpty)
+          .toList();
       final bytes = <int>[];
       for (final part in parts) {
         final padded = part.length == 1 ? '${part}0' : part;
@@ -398,7 +420,9 @@ class SerialPortViewModel extends ChangeNotifier {
     if (_displayConfig.hideReceive) return;
 
     String received = utf8.decode(data, allowMalformed: true);
-    String hexStr = data.map((byte) => byte.toRadixString(16).padLeft(2, '0').toUpperCase()).join(' ');
+    String hexStr = data
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0').toUpperCase())
+        .join(' ');
 
     final message = SerialPortMessage(
       data: received,
@@ -409,6 +433,7 @@ class SerialPortViewModel extends ChangeNotifier {
     );
 
     _messages.add(message);
+    _pruneMessagesIfNeeded();
 
     if (_displayConfig.logMode) {
       _writeToLogFile(message);
@@ -419,7 +444,34 @@ class SerialPortViewModel extends ChangeNotifier {
       receivedMessages: _stats.receivedMessages + 1,
     );
 
-    notifyListeners();
+    _scheduleBatchNotify();
+  }
+
+  void _pruneMessagesIfNeeded() {
+    if (_messages.length > _maxMessages) {
+      _messages.removeRange(
+        0,
+        _messages.length - _maxMessages + _messagePruneCount,
+      );
+    }
+  }
+
+  void _scheduleBatchNotify() {
+    if (_batchNotifyScheduled) return;
+    _batchNotifyScheduled = true;
+    _batchNotifyTimer?.cancel();
+    _batchNotifyTimer = Timer(_batchNotifyInterval, () {
+      _batchNotifyScheduled = false;
+      if (_state.isConnected) {
+        notifyListeners();
+      }
+    });
+  }
+
+  void _flushBatchNotify() {
+    _batchNotifyTimer?.cancel();
+    _batchNotifyTimer = null;
+    _batchNotifyScheduled = false;
   }
 
   /// 释放读取相关的 OVERLAPPED 资源
@@ -447,6 +499,7 @@ class SerialPortViewModel extends ChangeNotifier {
   Future<void> disconnect() async {
     _stopFileSend();
     _stopLoopSend();
+    _flushBatchNotify();
 
     // 停止数据接收定时器并释放 OVERLAPPED 资源
     _readTimer?.cancel();
@@ -485,58 +538,60 @@ class SerialPortViewModel extends ChangeNotifier {
       String sendDataStr;
       String displayData;
       String hexStr;
-      
+
       if (useHex) {
         // HEX模式：解析HEX数据
         // 去除首尾空格
         data = data.trim();
-        
+
         // 按空格分割，处理每一组
         final parts = data.split(RegExp(r'\s+'));
         final StringBuffer cleanHexBuffer = StringBuffer();
-        
+
         for (int i = 0; i < parts.length; i++) {
           String part = parts[i];
           if (part.isEmpty) continue;
-          
+
           // 移除每组中的非十六进制字符
           part = part.replaceAll(RegExp(r'[^0-9a-fA-F]'), '');
           if (part.isEmpty) continue;
-          
+
           // 如果只有1个字符，在前面补0
           if (part.length == 1) {
             part = '0$part';
           }
-          
+
           // 如果超过2个字符，只取前2个
           if (part.length > 2) {
             part = part.substring(0, 2);
           }
-          
+
           cleanHexBuffer.write(part);
         }
-        
+
         final cleanHex = cleanHexBuffer.toString();
-        
+
         // 检查是否有有效的十六进制字符
         if (cleanHex.isEmpty) {
           _setError('HEX格式错误：没有有效的十六进制字符');
           return false;
         }
-        
+
         // 转换为字节数组
         final bytes = Uint8List(cleanHex.length ~/ 2);
         for (int i = 0; i < cleanHex.length; i += 2) {
           bytes[i ~/ 2] = int.parse(cleanHex.substring(i, i + 2), radix: 16);
         }
-        
+
         // 追加回车/换行
         final appendBytes = _getAppendBytes();
         if (appendBytes.isNotEmpty) {
           final allBytes = Uint8List.fromList([...bytes, ...appendBytes]);
           sendDataStr = String.fromCharCodes(allBytes);
           displayData = utf8.decode(allBytes, allowMalformed: true);
-          hexStr = allBytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(' ');
+          hexStr = allBytes
+              .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+              .join(' ');
         } else {
           sendDataStr = String.fromCharCodes(bytes);
           displayData = utf8.decode(bytes, allowMalformed: true);
@@ -546,29 +601,36 @@ class SerialPortViewModel extends ChangeNotifier {
         // 文本模式：直接发送字符串
         final appendBytes = _getAppendBytes();
         if (appendBytes.isNotEmpty) {
-          final allBytes = Uint8List.fromList([...utf8.encode(data), ...appendBytes]);
+          final allBytes = Uint8List.fromList([
+            ...utf8.encode(data),
+            ...appendBytes,
+          ]);
           sendDataStr = String.fromCharCodes(allBytes);
           displayData = utf8.decode(allBytes, allowMalformed: true);
-          hexStr = allBytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(' ');
+          hexStr = allBytes
+              .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+              .join(' ');
         } else {
           sendDataStr = data;
           displayData = data;
           final bytes = Uint8List.fromList(utf8.encode(data));
-          hexStr = bytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(' ');
+          hexStr = bytes
+              .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+              .join(' ');
         }
       }
-      
+
       // 使用writeBytesFromString发送数据
       final result = _serialPort!.writeBytesFromString(
         sendDataStr,
         includeZeroTerminator: false,
       );
-      
+
       if (!result) {
         _setError('发送失败: 写入串口失败');
         return false;
       }
-      
+
       final message = SerialPortMessage(
         data: displayData,
         hexData: hexStr,
@@ -576,19 +638,19 @@ class SerialPortViewModel extends ChangeNotifier {
         isSent: true,
         dataLength: sendDataStr.length,
       );
-      
+
       _messages.add(message);
-      
+
       // 如果启用了日志模式，保存到文件
       if (_displayConfig.logMode) {
         _writeToLogFile(message);
       }
-      
+
       _stats = _stats.copyWith(
         sentBytes: _stats.sentBytes + sendDataStr.length,
         sentMessages: _stats.sentMessages + 1,
       );
-      
+
       _errorMessage = null;
       notifyListeners();
       return true;
@@ -597,21 +659,21 @@ class SerialPortViewModel extends ChangeNotifier {
       return false;
     }
   }
-  
+
   /// 发送数据并启动循环发送（如果开启）
   Future<bool> sendDataWithLoopCheck(String data, {bool? isHex}) async {
     // 保存数据用于循环发送
     final useHex = isHex ?? _displayConfig.sendHex;
     setLoopSendData(data, isHex: useHex);
-    
+
     // 发送数据
     final result = await sendData(data, isHex: isHex);
-    
+
     // 如果循环发送开启，启动循环发送
     if (result && _displayConfig.loopSend) {
       _startLoopSend();
     }
-    
+
     return result;
   }
 
@@ -619,7 +681,7 @@ class SerialPortViewModel extends ChangeNotifier {
   void _startLoopSend() {
     _stopLoopSend();
     if (_loopSendData.isEmpty) return;
-    
+
     _loopSendTimer = Timer.periodic(
       Duration(milliseconds: _displayConfig.loopInterval),
       (timer) {
@@ -635,7 +697,7 @@ class SerialPortViewModel extends ChangeNotifier {
     _loopSendTimer?.cancel();
     _loopSendTimer = null;
   }
-  
+
   /// 设置循环发送数据
   void setLoopSendData(String data, {bool isHex = false}) {
     _loopSendData = data;
@@ -667,7 +729,11 @@ class SerialPortViewModel extends ChangeNotifier {
   }
 
   /// 更新文件发送配置
-  void updateFileSendConfig({int? packetSize, int? sendInterval, String? protocolName}) {
+  void updateFileSendConfig({
+    int? packetSize,
+    int? sendInterval,
+    String? protocolName,
+  }) {
     _fileSendConfig = _fileSendConfig.copyWith(
       packetSize: packetSize,
       sendInterval: sendInterval,
@@ -695,10 +761,7 @@ class SerialPortViewModel extends ChangeNotifier {
       // 重置取消标志
       _isTransferCancelled = false;
 
-      _fileSendConfig = _fileSendConfig.copyWith(
-        isSending: true,
-        sentBytes: 0,
-      );
+      _fileSendConfig = _fileSendConfig.copyWith(isSending: true, sentBytes: 0);
       notifyListeners();
 
       final protocol = ProtocolRegistry.getByName(_fileSendConfig.protocolName);
@@ -735,7 +798,9 @@ class SerialPortViewModel extends ChangeNotifier {
           onWaitByte: (timeoutMs) async {
             // 等待串口收到数据，返回原始字节值
             final startIdx = _messages.length;
-            final deadline = DateTime.now().add(Duration(milliseconds: timeoutMs));
+            final deadline = DateTime.now().add(
+              Duration(milliseconds: timeoutMs),
+            );
             while (DateTime.now().isBefore(deadline)) {
               for (int i = startIdx; i < _messages.length; i++) {
                 final msg = _messages[i];
@@ -798,30 +863,31 @@ class SerialPortViewModel extends ChangeNotifier {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
     }
   }
-  
+
   /// 初始化日志文件
   Future<void> _initLogFile() async {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final now = DateTime.now();
-      final fileName = 'serial_log_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.txt';
+      final fileName =
+          'serial_log_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.txt';
       _logFile = File('${directory.path}/$fileName');
       debugPrint('日志文件已创建: ${_logFile!.path}');
     } catch (e) {
       debugPrint('创建日志文件失败: $e');
     }
   }
-  
+
   /// 写入日志文件
   Future<void> _writeToLogFile(SerialPortMessage message) async {
     if (_logFile == null) return;
-    
+
     try {
       final timeStr = message.timestamp.toString();
       final direction = message.isSent ? 'TX' : 'RX';
       final data = _displayConfig.receiveHex ? message.hexData : message.data;
       final logLine = '[$timeStr] $direction: $data\n';
-      
+
       await _logFile!.writeAsString(logLine, mode: FileMode.append);
     } catch (e) {
       debugPrint('写入日志文件失败: $e');
@@ -880,13 +946,15 @@ class SerialPortViewModel extends ChangeNotifier {
 
   /// 添加日志到主数据日志区（所有模块共用）
   void _addFirmwareLog(String message) {
-    _messages.add(SerialPortMessage(
-      data: '[协议] $message',
-      hexData: '',
-      timestamp: DateTime.now(),
-      isSent: false,
-      dataLength: 0,
-    ));
+    _messages.add(
+      SerialPortMessage(
+        data: '[协议] $message',
+        hexData: '',
+        timestamp: DateTime.now(),
+        isSent: false,
+        dataLength: 0,
+      ),
+    );
     notifyListeners();
   }
 
@@ -932,7 +1000,9 @@ class SerialPortViewModel extends ChangeNotifier {
     final firmwareFile = File(_firmwareConfig.firmwarePath);
     final firmwareBytes = await firmwareFile.readAsBytes();
     _addFirmwareLog('固件大小: ${formatBytes(firmwareBytes.length)}');
-    _addFirmwareLog('每包: ${_fileSendConfig.packetSize}B, 间隔: ${_fileSendConfig.sendInterval}ms');
+    _addFirmwareLog(
+      '每包: ${_fileSendConfig.packetSize}B, 间隔: ${_fileSendConfig.sendInterval}ms',
+    );
     notifyListeners();
 
     int offset = 0;
@@ -996,33 +1066,31 @@ class SerialPortViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _firmwareProcess = await Process.start(
-        'dart',
-        [_firmwareConfig.scriptPath],
-        mode: ProcessStartMode.normal,
-      );
+      _firmwareProcess = await Process.start('dart', [
+        _firmwareConfig.scriptPath,
+      ], mode: ProcessStartMode.normal);
 
       _firmwareProcess!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen(
-        (line) => _handleScriptMessage(line),
-        onDone: () {
-          if (_firmwareConfig.isUpgrading) {
-            _addFirmwareLog('脚本进程已退出');
-            _firmwareConfig = _firmwareConfig.copyWith(isUpgrading: false);
-            notifyListeners();
-          }
-        },
-      );
+            (line) => _handleScriptMessage(line),
+            onDone: () {
+              if (_firmwareConfig.isUpgrading) {
+                _addFirmwareLog('脚本进程已退出');
+                _firmwareConfig = _firmwareConfig.copyWith(isUpgrading: false);
+                notifyListeners();
+              }
+            },
+          );
 
       _firmwareProcess!.stderr
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-        _addFirmwareLog('[脚本错误] $line');
-        notifyListeners();
-      });
+            _addFirmwareLog('[脚本错误] $line');
+            notifyListeners();
+          });
 
       final firmwareMsg = jsonEncode({
         'type': 'firmware',
@@ -1089,7 +1157,9 @@ class SerialPortViewModel extends ChangeNotifier {
           break;
         case 'progress':
           final value = (msg['value'] as num).toDouble();
-          _firmwareConfig = _firmwareConfig.copyWith(progress: value.clamp(0.0, 1.0));
+          _firmwareConfig = _firmwareConfig.copyWith(
+            progress: value.clamp(0.0, 1.0),
+          );
           notifyListeners();
           break;
         case 'log':
@@ -1151,16 +1221,14 @@ class SerialPortViewModel extends ChangeNotifier {
 
   /// 清除升级脚本（恢复默认）
   void clearFirmwareScript() {
-    _firmwareConfig = _firmwareConfig.copyWith(
-      scriptPath: '',
-      scriptName: '',
-    );
+    _firmwareConfig = _firmwareConfig.copyWith(scriptPath: '', scriptName: '');
     _addFirmwareLog('已恢复默认发送脚本');
     notifyListeners();
   }
 
   @override
   void dispose() {
+    _flushBatchNotify();
     stopFirmwareUpgrade();
     _errorController.close();
     disconnect();

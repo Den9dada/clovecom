@@ -5,13 +5,13 @@ class BinEditOperation {
     required this.type,
     required this.address,
     required this.length,
-    required this.previousBytes,
+    required this.deltaBytes,
   });
 
   final BinEditOperationType type;
   final int address;
   final int length;
-  final List<int> previousBytes;
+  final List<int> deltaBytes;
 
   String get label {
     return switch (type) {

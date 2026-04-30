@@ -63,14 +63,13 @@ class BinEditorViewModel extends ChangeNotifier {
     _applyEdit(() {
       final address = HexTextParser.parseNumber(addressText);
       final insertBytes = HexTextParser.parseBytes(hexText);
-      final previous = [..._bytes];
       _bytes = BinEditorService.insertBytes(_bytes, address, insertBytes);
       _history.add(
         BinEditOperation(
           type: BinEditOperationType.insert,
           address: address,
           length: insertBytes.length,
-          previousBytes: previous,
+          deltaBytes: insertBytes,
         ),
       );
     });
@@ -80,14 +79,17 @@ class BinEditorViewModel extends ChangeNotifier {
     _applyEdit(() {
       final address = HexTextParser.parseNumber(addressText);
       final replaceBytes = HexTextParser.parseBytes(hexText);
-      final previous = [..._bytes];
+      final oldBytes = _bytes.sublist(
+        address,
+        (address + replaceBytes.length).clamp(0, _bytes.length),
+      );
       _bytes = BinEditorService.replaceBytes(_bytes, address, replaceBytes);
       _history.add(
         BinEditOperation(
           type: BinEditOperationType.replace,
           address: address,
           length: replaceBytes.length,
-          previousBytes: previous,
+          deltaBytes: oldBytes,
         ),
       );
     });
@@ -97,14 +99,15 @@ class BinEditorViewModel extends ChangeNotifier {
     _applyEdit(() {
       final address = HexTextParser.parseNumber(addressText);
       final length = HexTextParser.parseNumber(lengthText);
-      final previous = [..._bytes];
+      final end = (address + length).clamp(0, _bytes.length);
+      final deletedBytes = _bytes.sublist(address, end);
       _bytes = BinEditorService.deleteBytes(_bytes, address, length);
       _history.add(
         BinEditOperation(
           type: BinEditOperationType.delete,
           address: address,
           length: length,
-          previousBytes: previous,
+          deltaBytes: deletedBytes,
         ),
       );
     });
@@ -116,14 +119,14 @@ class BinEditorViewModel extends ChangeNotifier {
       if (bytes.length != 1) {
         throw const FormatException('请输入 1 个字节');
       }
-      final previous = [..._bytes];
+      final oldByte = _bytes[index];
       _bytes = BinEditorService.replaceBytes(_bytes, index, bytes);
       _history.add(
         BinEditOperation(
           type: BinEditOperationType.replace,
           address: index,
           length: 1,
-          previousBytes: previous,
+          deltaBytes: [oldByte],
         ),
       );
     });
@@ -134,7 +137,26 @@ class BinEditorViewModel extends ChangeNotifier {
       return;
     }
     final operation = _history.removeLast();
-    _bytes = [...operation.previousBytes];
+    switch (operation.type) {
+      case BinEditOperationType.insert:
+        _bytes = BinEditorService.deleteBytes(
+          _bytes,
+          operation.address,
+          operation.length,
+        );
+      case BinEditOperationType.replace:
+        _bytes = BinEditorService.replaceBytes(
+          _bytes,
+          operation.address,
+          operation.deltaBytes,
+        );
+      case BinEditOperationType.delete:
+        _bytes = BinEditorService.insertBytes(
+          _bytes,
+          operation.address,
+          operation.deltaBytes,
+        );
+    }
     _hasUnsavedChanges = _history.isNotEmpty;
     _lastError = null;
     notifyListeners();

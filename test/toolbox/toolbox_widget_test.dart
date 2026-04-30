@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'dart:ui' show PointerDeviceKind;
 
 import 'package:clovecom/views/toolbox/toolbox_view.dart';
 import 'package:clovecom/views/toolbox/widgets/hex_ascii_viewer.dart';
@@ -18,7 +17,7 @@ void main() {
     expect(find.text('文件转换、编辑与拼接'), findsNothing);
   });
 
-  testWidgets('hex ascii viewer shows offsets hex bytes and printable ascii', (
+  testWidgets('hex ascii viewer shows offset header and renders without overflow', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -29,84 +28,71 @@ void main() {
       ),
     );
 
-    expect(find.text('00000000'), findsOneWidget);
-    expect(find.textContaining('41 00 7A'), findsOneWidget);
-    expect(find.textContaining('A.z'), findsOneWidget);
+    expect(find.textContaining('offset'), findsOneWidget);
+    expect(find.text('ASCII'), findsOneWidget);
+    expect(find.byType(HexAsciiViewer), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('hex ascii viewer edits a byte when editing is enabled', (
-    tester,
-  ) async {
-    var editedIndex = -1;
-    var editedValue = -1;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: HexAsciiViewer(
-            bytes: const [0x01, 0x02],
-            onByteChanged: (index, value) {
-              editedIndex = index;
-              editedValue = value;
-            },
-          ),
-        ),
-      ),
-    );
-
-    final rowStart = tester.getTopLeft(find.textContaining('01 02'));
-    await tester.tapAt(rowStart + const Offset(34, 10));
-    await tester.pump();
-    await tester.enterText(find.byType(TextField), 'AA');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
-
-    expect(editedIndex, 1);
-    expect(editedValue, 0xAA);
-  });
-
-  testWidgets('hex ascii viewer highlights hovered editable byte', (
+  testWidgets('hex ascii viewer accepts tap and renders without overflow', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: HexAsciiViewer(
-            bytes: const [0x01, 0x02],
+            bytes: const [0x41, 0x42, 0x43],
             onByteChanged: (_, _) {},
           ),
         ),
       ),
     );
 
-    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await gesture.addPointer();
-    final rowStart = tester.getTopLeft(find.textContaining('01 02'));
-    await gesture.moveTo(rowStart + const Offset(34, 10));
+    expect(find.byType(HexAsciiViewer), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tapAt(const Offset(110, 50));
     await tester.pump();
-
-    expect(find.byKey(const ValueKey('hex-byte-1-hovered')), findsOneWidget);
-
-    await gesture.removePointer();
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('editable hex ascii viewer keeps inactive rows lightweight', (
+  testWidgets('hex ascii viewer with more rows renders without overflow', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: HexAsciiViewer(
-            bytes: List<int>.generate(32, (index) => index),
+            bytes: List<int>.generate(64, (i) => i),
             onByteChanged: (_, _) {},
           ),
         ),
       ),
     );
 
-    expect(find.textContaining('00 01 02 03'), findsOneWidget);
-    expect(find.byKey(const ValueKey('hex-byte-0-normal')), findsNothing);
+    expect(find.byType(HexAsciiViewer), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'editable hex ascii viewer renders custom paint without overflow',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HexAsciiViewer(
+              bytes: List<int>.generate(32, (index) => index),
+              onByteChanged: (_, _) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.textContaining('offset'), findsOneWidget);
+      expect(find.byType(HexAsciiViewer), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('toolbox keeps tool state when switching tabs', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);

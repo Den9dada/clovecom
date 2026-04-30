@@ -65,6 +65,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
   );
 
   StreamSubscription<String>? _errorSub;
+  int _lastMessageCount = 0;
 
   @override
   void initState() {
@@ -800,81 +801,86 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
 
   /// 构建数据日志区
   Widget _buildLogArea(SerialPortViewModel viewModel, ColorScheme colorScheme) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (viewModel.displayConfig.autoScroll) {
-        _scrollToBottom();
-      }
-    });
-
     final messages = viewModel.messages;
     final displayConfig = viewModel.displayConfig;
 
-    return Container(
-      color: _terminalBackground,
-      child: Column(
-        children: [
-          // 标题栏
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-            decoration: const BoxDecoration(
-              color: _terminalPanel,
-              border: Border(bottom: BorderSide(color: _terminalBorder)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.article_outlined, size: 16, color: _txColor),
-                const SizedBox(width: 8),
-                Text(
-                  '数据日志',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelLarge?.copyWith(color: _terminalText),
-                ),
-                const Spacer(),
-                _buildLogStat(
-                  'RX',
-                  viewModel.formatBytes(viewModel.stats.receivedBytes),
-                  _rxColor,
-                ),
-                const SizedBox(width: 8),
-                _buildLogStat(
-                  'TX',
-                  viewModel.formatBytes(viewModel.stats.sentBytes),
-                  _txColor,
-                ),
-                const SizedBox(width: 8),
-                _buildLogClearButton(viewModel),
-              ],
-            ),
-          ),
-          // 消息列表
-          Expanded(
-            child: messages.isEmpty
-                ? Center(
-                    child: Text(
-                      '暂无数据',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: _terminalMuted.withValues(alpha: 0.72),
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final message = messages[index];
-                      return _buildMessageItem(
-                        message,
-                        displayConfig.receiveHex,
-                      );
-                    },
+    if (displayConfig.autoScroll && messages.length != _lastMessageCount) {
+      _lastMessageCount = messages.length;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _scrollToBottom();
+        }
+      });
+    }
+
+    return RepaintBoundary(
+      child: Container(
+        color: _terminalBackground,
+        child: Column(
+          children: [
+            // 标题栏
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+              decoration: const BoxDecoration(
+                color: _terminalPanel,
+                border: Border(bottom: BorderSide(color: _terminalBorder)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.article_outlined, size: 16, color: _txColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    '数据日志',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelLarge?.copyWith(color: _terminalText),
                   ),
-          ),
-        ],
+                  const Spacer(),
+                  _buildLogStat(
+                    'RX',
+                    viewModel.formatBytes(viewModel.stats.receivedBytes),
+                    _rxColor,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildLogStat(
+                    'TX',
+                    viewModel.formatBytes(viewModel.stats.sentBytes),
+                    _txColor,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildLogClearButton(viewModel),
+                ],
+              ),
+            ),
+            // 消息列表
+            Expanded(
+              child: messages.isEmpty
+                  ? Center(
+                      child: Text(
+                        '暂无数据',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _terminalMuted.withValues(alpha: 0.72),
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final message = messages[index];
+                        return _buildMessageItem(
+                          message,
+                          displayConfig.receiveHex,
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
