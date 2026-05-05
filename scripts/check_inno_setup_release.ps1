@@ -52,7 +52,6 @@ function Find-Iscc {
 $requiredInput = @(
   'clovecom.exe',
   'flutter_windows.dll',
-  'native_assets.json',
   'data/app.so',
   'data/icudtl.dat',
   'data/flutter_assets',

@@ -86,7 +86,6 @@ begin
     Missing := '';
     AddMissingFile(Missing, 'clovecom.exe');
     AddMissingFile(Missing, 'flutter_windows.dll');
-    AddMissingFile(Missing, 'native_assets.json');
     AddMissingFile(Missing, 'data\app.so');
     AddMissingFile(Missing, 'data\icudtl.dat');
     AddMissingFile(Missing, 'data\flutter_assets');

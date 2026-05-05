@@ -137,7 +137,6 @@ function Add-VirtualFile {
 }
 
 Add-VirtualFile -Path (Join-Path $inputDir 'flutter_windows.dll')
-Add-VirtualFile -Path (Join-Path $inputDir 'native_assets.json')
 Add-VirtualFile -Path (Join-Path $inputDir 'data')
 foreach ($dll in $appBundleDlls) {
   Add-VirtualFile -Path (Join-Path $inputDir $dll)

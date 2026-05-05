@@ -72,7 +72,6 @@ void SetCurrentDirectoryToExecutablePath() {
 bool ValidateFlutterRuntimeFiles() {
   const wchar_t* required_paths[] = {
       L"flutter_windows.dll",
-      L"native_assets.json",
       L"data",
       L"data\\icudtl.dat",
       L"data\\flutter_assets",

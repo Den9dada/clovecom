@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -35,7 +37,13 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   var _addressRadix = 16;
   var _scrollOffset = 0.0;
   static const _navIntervalUs = 50000;
-  final _navLastMicros = <LogicalKeyboardKey, int>{};
+  static const _navInitialDelayMs = 1000;
+  static const _doubleClickWindowUs = 400000;
+  Timer? _navDelayTimer;
+  Timer? _navRepeatTimer;
+  LogicalKeyboardKey? _navDirection;
+  LogicalKeyboardKey? _lastNavUpKey;
+  var _lastNavUpMicros = 0;
   double? _cachedCharW;
   String? _lastHash;
   HexPainterCache? _cache;
@@ -50,6 +58,8 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
 
   @override
   void dispose() {
+    _navDelayTimer?.cancel();
+    _navRepeatTimer?.cancel();
     _focusNode.removeListener(_onFocusChange);
     _scrollCtrl.removeListener(_onScroll);
     _scrollCtrl.dispose();
@@ -58,9 +68,16 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   }
 
   void _onFocusChange() {
-    if (!_focusNode.hasFocus && _cursorOffset >= 0) {
-      _cursorOffset = -1;
-      setState(() {});
+    if (!_focusNode.hasFocus) {
+      _navDelayTimer?.cancel();
+      _navRepeatTimer?.cancel();
+      _navDelayTimer = null;
+      _navRepeatTimer = null;
+      _navDirection = null;
+      if (_cursorOffset >= 0) {
+        _cursorOffset = -1;
+        setState(() {});
+      }
     }
   }
 
@@ -334,44 +351,84 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   }
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent e) {
-    if (widget.onByteChanged == null) return KeyEventResult.ignored;
-    if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
-    final isRepeat = e is KeyRepeatEvent;
 
     // Only respond when a byte is selected
     if (_cursorOffset < 0) return KeyEventResult.ignored;
 
-    final now = e.timeStamp.inMicroseconds;
-
-    // Navigate: per-key throttle for smooth long-press
-    if (k == LogicalKeyboardKey.arrowLeft ||
+    // --- Arrow key navigation (common: preview + edit) ---
+    final isArrow = k == LogicalKeyboardKey.arrowLeft ||
         k == LogicalKeyboardKey.arrowRight ||
         k == LogicalKeyboardKey.arrowUp ||
-        k == LogicalKeyboardKey.arrowDown) {
-      if (isRepeat) {
-        final last = _navLastMicros[k] ?? 0;
-        if (now - last < _navIntervalUs) return KeyEventResult.handled;
-      }
-      _navLastMicros[k] = now;
-      _highNibble = true;
+        k == LogicalKeyboardKey.arrowDown;
 
-      if (k == LogicalKeyboardKey.arrowLeft) {
-        if (_cursorOffset > 0) _cursorOffset--;
-      } else if (k == LogicalKeyboardKey.arrowRight) {
-        if (_cursorOffset < widget.bytes.length - 1) _cursorOffset++;
-      } else if (k == LogicalKeyboardKey.arrowUp) {
-        if (_cursorOffset >= _bytesPerLine) _cursorOffset -= _bytesPerLine;
-      } else if (k == LogicalKeyboardKey.arrowDown) {
-        if (_cursorOffset + _bytesPerLine < widget.bytes.length) {
-          _cursorOffset += _bytesPerLine;
-        }
+    if (isArrow && e is KeyDownEvent) {
+      _highNibble = true;
+      _doNav(k); // always move one step
+
+      _navDelayTimer?.cancel();
+      _navRepeatTimer?.cancel();
+
+      final now = e.timeStamp.inMicroseconds;
+      final isDoubleClick = _lastNavUpKey == k &&
+          now - _lastNavUpMicros < _doubleClickWindowUs;
+
+      if (isDoubleClick) {
+        _navDirection = k;
+        _navDelayTimer = Timer(
+          const Duration(milliseconds: _navInitialDelayMs),
+          () {
+            _navRepeatTimer = Timer.periodic(
+              const Duration(microseconds: _navIntervalUs),
+              (_) {
+                final dir = _navDirection;
+                if (dir != null) _doNav(dir);
+              },
+            );
+          },
+        );
       }
-      _scrollToCursor();
-      setState(() {});
+
       return KeyEventResult.handled;
     }
 
+    if (isArrow && e is KeyUpEvent) {
+      _lastNavUpKey = k;
+      _lastNavUpMicros = e.timeStamp.inMicroseconds;
+      _navDelayTimer?.cancel();
+      _navRepeatTimer?.cancel();
+      _navDelayTimer = null;
+      _navRepeatTimer = null;
+      _navDirection = null;
+      return KeyEventResult.handled;
+    }
+
+    if (e is! KeyDownEvent) return KeyEventResult.ignored;
+    final isRepeat = e is KeyRepeatEvent;
+
+    // --- Preview mode: enter + escape ---
+    if (widget.onByteChanged == null) {
+      // Enter: move focus to next byte
+      if (k == LogicalKeyboardKey.enter) {
+        if (_cursorOffset < widget.bytes.length - 1) _cursorOffset++;
+        _scrollToCursor();
+        setState(() {});
+        return KeyEventResult.handled;
+      }
+
+      // Escape: cancel selection
+      if (k == LogicalKeyboardKey.escape) {
+        _cursorOffset = -1;
+        _highNibble = true;
+        _focusNode.unfocus();
+        setState(() {});
+        return KeyEventResult.handled;
+      }
+
+      return KeyEventResult.ignored;
+    }
+
+    // --- Edit mode: hex input ---
     // Escape: cancel selection
     if (k == LogicalKeyboardKey.escape) {
       _cursorOffset = -1;
@@ -402,6 +459,22 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
     }
 
     return KeyEventResult.ignored;
+  }
+
+  void _doNav(LogicalKeyboardKey k) {
+    if (k == LogicalKeyboardKey.arrowLeft) {
+      if (_cursorOffset > 0) _cursorOffset--;
+    } else if (k == LogicalKeyboardKey.arrowRight) {
+      if (_cursorOffset < widget.bytes.length - 1) _cursorOffset++;
+    } else if (k == LogicalKeyboardKey.arrowUp) {
+      if (_cursorOffset >= _bytesPerLine) _cursorOffset -= _bytesPerLine;
+    } else if (k == LogicalKeyboardKey.arrowDown) {
+      if (_cursorOffset + _bytesPerLine < widget.bytes.length) {
+        _cursorOffset += _bytesPerLine;
+      }
+    }
+    _scrollToCursor();
+    setState(() {});
   }
 
   void _inputHex(int hv) {

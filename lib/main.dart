@@ -47,6 +47,14 @@ class MyApp extends StatelessWidget {
       title: '通信助手',
       debugShowCheckedModeBanner: false,
 
+      // 禁用方向键 widget 焦点遍历
+      builder: (context, child) => Actions(
+        actions: <Type, Action<Intent>>{
+          DirectionalFocusIntent: DoNothingAction(),
+        },
+        child: child!,
+      ),
+
       // Material 3主题配置
       theme: ThemeData(
         useMaterial3: true,
