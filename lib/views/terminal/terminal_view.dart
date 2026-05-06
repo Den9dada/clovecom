@@ -42,46 +42,7 @@ class _TerminalViewState extends State<TerminalView>
   Widget _buildContent(BuildContext context) {
     final viewModel = context.watch<TerminalViewModel>();
     final colorScheme = Theme.of(context).colorScheme;
-
-    if (viewModel.sessions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.terminal, size: 48, color: colorScheme.primary),
-            const SizedBox(height: 16),
-            Text(
-              '终端模块',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '请选择终端类型开始连接',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FilledButton.icon(
-                  onPressed: () => _openSshDialog(context, viewModel),
-                  icon: const Icon(Icons.cloud, size: 16),
-                  label: const Text('SSH 连接'),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _openSerialDialog(context, viewModel),
-                  icon: const Icon(Icons.usb, size: 16),
-                  label: const Text('串口连接'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
+    final hasSessions = viewModel.sessions.isNotEmpty;
 
     return Row(
       children: [
@@ -93,15 +54,17 @@ class _TerminalViewState extends State<TerminalView>
         Expanded(
           child: Column(
             children: [
-              TerminalTabBar(viewModel: viewModel),
-              Divider(height: 1, color: colorScheme.outlineVariant),
+              if (hasSessions) ...[
+                TerminalTabBar(viewModel: viewModel),
+                Divider(height: 1, color: colorScheme.outlineVariant),
+              ],
               Expanded(
-                child: viewModel.selectedSession != null
+                child: hasSessions && viewModel.selectedSession != null
                     ? TerminalPane(session: viewModel.selectedSession!)
-                    : const SizedBox.shrink(),
+                    : _buildEmptyPane(context, viewModel, colorScheme),
               ),
               Divider(height: 1, color: colorScheme.outlineVariant),
-              _buildStatusBar(context, viewModel),
+              _statusBar(context, viewModel),
             ],
           ),
         ),
@@ -109,24 +72,63 @@ class _TerminalViewState extends State<TerminalView>
     );
   }
 
-  void _openSshDialog(BuildContext context, TerminalViewModel viewModel) {
+  Widget _buildEmptyPane(
+    BuildContext context,
+    TerminalViewModel viewModel,
+    ColorScheme colorScheme,
+  ) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.terminal, size: 48, color: colorScheme.primary),
+          const SizedBox(height: 16),
+          Text('未打开会话', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            '请点击左侧 新建连接 或下方按钮开始',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FilledButton.icon(
+                onPressed: () => _openSsh(context, viewModel),
+                icon: const Icon(Icons.cloud, size: 16),
+                label: const Text('SSH 连接'),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () => _openSerial(context, viewModel),
+                icon: const Icon(Icons.usb, size: 16),
+                label: const Text('串口连接'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openSsh(BuildContext context, TerminalViewModel viewModel) {
     showDialog(
       context: context,
       builder: (_) => ConnectDialog(viewModel: viewModel, initialMode: 0),
     );
   }
 
-  void _openSerialDialog(BuildContext context, TerminalViewModel viewModel) {
+  void _openSerial(BuildContext context, TerminalViewModel viewModel) {
     showDialog(
       context: context,
       builder: (_) => ConnectDialog(viewModel: viewModel, initialMode: 1),
     );
   }
 
-  Widget _buildStatusBar(
-    BuildContext context,
-    TerminalViewModel viewModel,
-  ) {
+  Widget _statusBar(BuildContext context, TerminalViewModel viewModel) {
     final session = viewModel.selectedSession;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -142,13 +144,10 @@ class _TerminalViewState extends State<TerminalView>
       ),
       child: Row(
         children: [
-          _statusDot(
-            session?.status ?? SessionStatus.disconnected,
-            colorScheme,
-          ),
+          _dot(session?.status ?? SessionStatus.disconnected, colorScheme),
           const SizedBox(width: 8),
           Text(
-            session?.statusLabel ?? 'No session',
+            session?.statusLabel ?? 'Idle',
             style: theme.textTheme.bodySmall?.copyWith(
               fontSize: 11.5,
               letterSpacing: 0.3,
@@ -168,7 +167,7 @@ class _TerminalViewState extends State<TerminalView>
     );
   }
 
-  Widget _statusDot(SessionStatus status, ColorScheme colors) {
+  Widget _dot(SessionStatus status, ColorScheme colors) {
     final color = status == SessionStatus.connected
         ? colors.primary
         : status == SessionStatus.connecting

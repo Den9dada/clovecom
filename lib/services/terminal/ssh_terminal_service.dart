@@ -24,7 +24,13 @@ class SshTerminalService {
       onPasswordRequest: () => params.password,
     );
 
-    _session = await _client!.shell();
+    _session = await _client!.shell(
+      pty: SSHPtyConfig(
+        type: params.terminalType,
+        width: 80,
+        height: 24,
+      ),
+    );
 
     _stdoutSub = _session!.stdout.cast<List<int>>().listen((data) {
       terminal.write(utf8.decode(data, allowMalformed: true));

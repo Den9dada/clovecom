@@ -6,7 +6,11 @@ import '../../../services/terminal/serial_terminal_service.dart';
 import '../../../viewmodels/terminal/terminal_viewmodel.dart';
 
 class ConnectDialog extends StatefulWidget {
-  const ConnectDialog({super.key, required this.viewModel, this.initialMode = 0});
+  const ConnectDialog({
+    super.key,
+    required this.viewModel,
+    this.initialMode = 0,
+  });
 
   final TerminalViewModel viewModel;
   final int initialMode;
@@ -31,6 +35,8 @@ class _ConnectDialogState extends State<ConnectDialog> {
   String _parity = 'None';
   bool _customBaud = false;
   int _customBaudRate = 115200;
+
+  String _terminalType = 'xterm-256color';
 
   @override
   void initState() {
@@ -145,6 +151,23 @@ class _ConnectDialogState extends State<ConnectDialog> {
           border: OutlineInputBorder(),
           isDense: true,
         ),
+      ),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        value: _terminalType,
+        decoration: const InputDecoration(
+          labelText: '终端类型',
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: SshConnectionParams.terminalTypes
+            .map(
+              (t) => DropdownMenuItem(value: t, child: Text(t)),
+            )
+            .toList(),
+        onChanged: (v) {
+          if (v != null) setState(() => _terminalType = v);
+        },
       ),
     ];
   }
@@ -277,6 +300,7 @@ class _ConnectDialogState extends State<ConnectDialog> {
         sessionName: _nameCtrl.text.trim(),
         username: _userCtrl.text.trim(),
         password: _passCtrl.text,
+        terminalType: _terminalType,
       ));
     } else {
       if (_serialPort == null) return;
