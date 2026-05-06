@@ -15,142 +15,14 @@ class CrcTool extends StatefulWidget {
 
 class _CrcToolState extends State<CrcTool> with AutomaticKeepAliveClientMixin {
   late final CrcViewModel _viewModel = CrcViewModel();
-  final _aboutKey = GlobalKey();
-  OverlayEntry? _aboutEntry;
 
   @override
   bool get wantKeepAlive => true;
 
   @override
-  void initState() {
-    super.initState();
-    _viewModel.addListener(_onAboutStateChanged);
-  }
-
-  @override
   void dispose() {
-    _viewModel.removeListener(_onAboutStateChanged);
-    _removeAboutOverlay();
     _viewModel.dispose();
     super.dispose();
-  }
-
-  void _onAboutStateChanged() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_viewModel.showAboutPopup) {
-        _showAboutOverlay();
-      } else {
-        _removeAboutOverlay();
-      }
-    });
-  }
-
-  void _showAboutOverlay() {
-    _removeAboutOverlay();
-    final renderBox =
-        _aboutKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
-
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    _aboutEntry = OverlayEntry(
-      builder: (ctx) => GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => _viewModel.dismissAbout(),
-        child: Stack(
-          children: [
-            Positioned(
-              left: (offset.dx + size.width / 2 - 320).clamp(0, 700),
-              top: offset.dy + size.height + 6,
-              child: MouseRegion(
-                onEnter: (_) => _viewModel.setAboutHovered(true),
-                onExit: (_) {
-                  Future.delayed(const Duration(milliseconds: 150), () {
-                    if (!_viewModel.isAboutPinned) {
-                      _viewModel.setAboutHovered(false);
-                    }
-                  });
-                },
-                child: GestureDetector(
-                  onTap: () {},
-                  child: Material(
-                    elevation: 12,
-                    borderRadius: BorderRadius.circular(12),
-                    shadowColor: Colors.black26,
-                    child: Container(
-                      width: 640,
-                      constraints: const BoxConstraints(maxHeight: 420),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colorScheme.outlineVariant),
-                      ),
-                      child: SingleChildScrollView(
-                        child: DataTable(
-                          headingTextStyle: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                            color: colorScheme.onSurface,
-                          ),
-                          dataTextStyle: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.onSurface,
-                          ),
-                          columnSpacing: 12,
-                          headingRowHeight: 32,
-                          dataRowMinHeight: 26,
-                          dataRowMaxHeight: 26,
-                          columns: const [
-                            DataColumn(label: Text('名称')),
-                            DataColumn(label: Text('宽度'), numeric: true),
-                            DataColumn(label: Text('多项式(Poly)')),
-                            DataColumn(label: Text('初始值(Init)')),
-                            DataColumn(label: Text('异或值(XorOut)')),
-                            DataColumn(label: Text('输入反转')),
-                            DataColumn(label: Text('输出反转')),
-                          ],
-                          rows: CrcPresets.all.map((preset) {
-                            final p = preset.params;
-                            final isSelected =
-                                _viewModel.selectedPreset == preset.name;
-                            final hexLen = (p.width + 3) ~/ 4;
-                            String hexVal(int v) => v
-                                .toRadixString(16)
-                                .toUpperCase()
-                                .padLeft(hexLen, '0');
-                            return DataRow(
-                              selected: isSelected,
-                              cells: [
-                                DataCell(Text(preset.name)),
-                                DataCell(Text('${p.width}')),
-                                DataCell(Text('0x${hexVal(p.poly)}')),
-                                DataCell(Text('0x${hexVal(p.init)}')),
-                                DataCell(Text('0x${hexVal(p.xorout)}')),
-                                DataCell(Text(p.refin ? '✓' : '✗')),
-                                DataCell(Text(p.refout ? '✓' : '✗')),
-                              ],
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    Overlay.of(context).insert(_aboutEntry!);
-  }
-
-  void _removeAboutOverlay() {
-    _aboutEntry?.remove();
-    _aboutEntry = null;
   }
 
   @override
@@ -158,15 +30,13 @@ class _CrcToolState extends State<CrcTool> with AutomaticKeepAliveClientMixin {
     super.build(context);
     return ChangeNotifierProvider.value(
       value: _viewModel,
-      child: _CrcToolContent(aboutKey: _aboutKey),
+      child: const _CrcToolContent(),
     );
   }
 }
 
 class _CrcToolContent extends StatelessWidget {
-  const _CrcToolContent({required this.aboutKey});
-
-  final GlobalKey aboutKey;
+  const _CrcToolContent();
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +48,9 @@ class _CrcToolContent extends StatelessWidget {
         final controls = _buildControls(context, viewModel);
 
         Widget rightPane;
-        if (viewModel.inputMode == DataInputMode.file &&
+        if (viewModel.showAboutPopup) {
+          rightPane = _buildAboutPanel(context, viewModel);
+        } else if (viewModel.inputMode == DataInputMode.file &&
             viewModel.fileBytes != null) {
           rightPane = Column(
             children: [
@@ -383,7 +255,7 @@ class _CrcToolContent extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                _buildAboutButton(viewModel, colorScheme, aboutKey),
+                _buildAboutButton(viewModel, colorScheme),
               ],
             ),
             if (!viewModel.isCustomMode) ...[
@@ -459,25 +331,140 @@ class _CrcToolContent extends StatelessWidget {
     );
   }
 
-  Widget _buildAboutButton(CrcViewModel viewModel, ColorScheme colorScheme, GlobalKey aboutKey) {
+  Widget _buildAboutButton(CrcViewModel viewModel, ColorScheme colorScheme) {
     return GestureDetector(
       onTap: () => viewModel.toggleAboutPinned(),
       child: MouseRegion(
-        key: aboutKey,
-        onEnter: (_) => viewModel.setAboutHovered(true),
-        onExit: (_) {
-          Future.delayed(const Duration(milliseconds: 150), () {
-            if (!viewModel.isAboutPinned) {
-              viewModel.setAboutHovered(false);
-            }
-          });
-        },
+        onEnter: (_) => viewModel.enterAboutHover(),
+        onExit: (_) => viewModel.exitAboutHover(),
         child: Tooltip(
           message: '查看 CRC 参数模型列表',
           child: Icon(Icons.info_outline, size: 20, color: colorScheme.primary),
         ),
       ),
     );
+  }
+
+  Widget _buildAboutPanel(BuildContext context, CrcViewModel viewModel) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final bodyStyle = TextStyle(
+      fontSize: 12.5,
+      height: 1.5,
+      color: colorScheme.onSurface,
+    );
+    final headingStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      height: 1.5,
+      color: colorScheme.onSurface,
+    );
+
+    return MouseRegion(
+      onEnter: (_) => viewModel.enterAboutHover(),
+      onExit: (_) => viewModel.exitAboutHover(),
+      child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('CRC 参数模型列表', style: theme.textTheme.titleSmall),
+                ),
+                IconButton(
+                  onPressed: () => viewModel.dismissAbout(),
+                  icon: const Icon(Icons.close, size: 18),
+                  visualDensity: VisualDensity.compact,
+                  tooltip: '关闭',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CRC校验（循环冗余校验）小知识',
+                      style: headingStyle,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'CRC即循环冗余校验码（Cyclic Redundancy Check）：是数据通信领域中最常用的一种查错校验码，其特征是信息字段和校验字段的长度可以任意选定。循环冗余检查（CRC）是一种数据传输检错功能，对数据进行多项式计算，并将得到的结果附在帧的后面，接收设备也执行类似的算法，以保证数据传输的正确性和完整性。',
+                      style: bodyStyle,
+                    ),
+                    const SizedBox(height: 10),
+                    Text('CRC算法参数模型解释：', style: headingStyle),
+                    const SizedBox(height: 4),
+                    Text('NAME：参数模型名称。', style: bodyStyle),
+                    Text('WIDTH：宽度，即CRC比特数。', style: bodyStyle),
+                    Text('POLY：生成项的简写，以16进制表示。例如：CRC-32即是0x04C11DB7，忽略了最高位的"1"，即完整的生成项是0x104C11DB7。', style: bodyStyle),
+                    Text('INIT：这是算法开始时寄存器（crc）的初始化预置值，十六进制表示。', style: bodyStyle),
+                    Text('REFIN：待测数据的每个字节是否按位反转，True或False。', style: bodyStyle),
+                    Text('REFOUT：在计算后之后，异或输出之前，整个数据是否按位反转，True或False。', style: bodyStyle),
+                    Text('XOROUT：计算结果与此参数异或后得到最终的CRC值。', style: bodyStyle),
+                    const SizedBox(height: 14),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        headingTextStyle: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: colorScheme.onSurface,
+                        ),
+                        dataTextStyle: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurface,
+                        ),
+                        columnSpacing: 12,
+                        headingRowHeight: 32,
+                        dataRowMinHeight: 26,
+                        dataRowMaxHeight: 26,
+                        columns: const [
+                          DataColumn(label: Text('名称')),
+                          DataColumn(label: Text('宽度'), numeric: true),
+                          DataColumn(label: Text('多项式(Poly)')),
+                          DataColumn(label: Text('初始值(Init)')),
+                          DataColumn(label: Text('异或值(XorOut)')),
+                          DataColumn(label: Text('输入反转')),
+                          DataColumn(label: Text('输出反转')),
+                        ],
+                        rows: CrcPresets.all.map((preset) {
+                          final p = preset.params;
+                          final isSelected =
+                              viewModel.selectedPreset == preset.name;
+                          final hexLen = (p.width + 3) ~/ 4;
+                          String hexVal(int v) => v
+                              .toRadixString(16)
+                              .toUpperCase()
+                              .padLeft(hexLen, '0');
+                          return DataRow(
+                            selected: isSelected,
+                            cells: [
+                              DataCell(Text(preset.name)),
+                              DataCell(Text('${p.width}')),
+                              DataCell(Text('0x${hexVal(p.poly)}')),
+                              DataCell(Text('0x${hexVal(p.init)}')),
+                              DataCell(Text('0x${hexVal(p.xorout)}')),
+                              DataCell(Text(p.refin ? '✓' : '✗')),
+                              DataCell(Text(p.refout ? '✓' : '✗')),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
   }
 
   Widget _buildCustomParams(CrcViewModel viewModel) {

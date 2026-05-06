@@ -181,13 +181,13 @@ void main() {
     test('about popup toggles', () {
       final vm = CrcViewModel();
       expect(vm.showAboutPopup, false);
-      vm.setAboutHovered(true);
+      vm.enterAboutHover();
       expect(vm.showAboutPopup, true);
-      vm.setAboutHovered(false);
+      vm.exitAboutHover();
       expect(vm.showAboutPopup, false);
       vm.toggleAboutPinned();
       expect(vm.showAboutPopup, true);
-      vm.setAboutHovered(false);
+      vm.exitAboutHover();
       expect(vm.showAboutPopup, true);
       vm.dismissAbout();
       expect(vm.showAboutPopup, false);

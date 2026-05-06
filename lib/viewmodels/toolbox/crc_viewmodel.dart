@@ -24,7 +24,7 @@ class CrcViewModel extends ChangeNotifier {
   );
 
   bool _isAboutPinned = false;
-  bool _isAboutHovered = false;
+  int _aboutHoverCount = 0;
 
   int? _result;
 
@@ -37,8 +37,7 @@ class CrcViewModel extends ChangeNotifier {
   String? get selectedPreset => _selectedPreset;
   CrcParams get customParams => _customParams;
   bool get isAboutPinned => _isAboutPinned;
-  bool get isAboutHovered => _isAboutHovered;
-  bool get showAboutPopup => _isAboutPinned || _isAboutHovered;
+  bool get showAboutPopup => _aboutHoverCount > 0 || _isAboutPinned;
   int? get result => _result;
   bool get isCustomMode => _selectedPreset == null;
 
@@ -134,8 +133,13 @@ class CrcViewModel extends ChangeNotifier {
     _recalculate();
   }
 
-  void setAboutHovered(bool value) {
-    _isAboutHovered = value;
+  void enterAboutHover() {
+    _aboutHoverCount++;
+    notifyListeners();
+  }
+
+  void exitAboutHover() {
+    if (_aboutHoverCount > 0) _aboutHoverCount--;
     notifyListeners();
   }
 
@@ -146,6 +150,7 @@ class CrcViewModel extends ChangeNotifier {
 
   void dismissAbout() {
     _isAboutPinned = false;
+    _aboutHoverCount = 0;
     notifyListeners();
   }
 
