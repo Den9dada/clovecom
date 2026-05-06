@@ -106,7 +106,7 @@ class SerialTerminalService {
 
       if (bytesRead > 0) {
         _terminal!.write(
-          utf8.decode(buffer.asTypedList(bytesRead), allowMalformed: true),
+          String.fromCharCodes(buffer.asTypedList(bytesRead)),
         );
       }
     } finally {
