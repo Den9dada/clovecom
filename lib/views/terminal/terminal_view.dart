@@ -133,24 +133,33 @@ class _TerminalViewState extends State<TerminalView>
 
     return Container(
       height: 26,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      color: colorScheme.surfaceContainerLow,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: const BorderRadius.vertical(
+          bottom: Radius.circular(6),
+        ),
+      ),
       child: Row(
         children: [
           _statusDot(
             session?.status ?? SessionStatus.disconnected,
             colorScheme,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Text(
             session?.statusLabel ?? 'No session',
-            style: theme.textTheme.bodySmall,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontSize: 11.5,
+              letterSpacing: 0.3,
+            ),
           ),
           const Spacer(),
           if (session != null)
             Text(
               session.name,
               style: theme.textTheme.bodySmall?.copyWith(
+                fontSize: 11.5,
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
