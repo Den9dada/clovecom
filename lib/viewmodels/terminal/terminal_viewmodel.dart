@@ -101,13 +101,20 @@ class TerminalViewModel extends ChangeNotifier {
       name: params.displayName,
       type: SessionType.serial,
       terminal: terminal,
-      status: SessionStatus.connected,
+      status: SessionStatus.connecting,
     );
-
-    _serialService.connect(params, terminal);
 
     _sessions.add(session);
     _selectedSessionIndex = _sessions.length - 1;
+    notifyListeners();
+
+    try {
+      _serialService.connect(params, terminal);
+      session.status = SessionStatus.connected;
+    } catch (e) {
+      session.status = SessionStatus.disconnected;
+      terminal.write('\r\n\x1b[31mSerial connection failed: $e\x1b[0m\r\n');
+    }
     notifyListeners();
   }
 

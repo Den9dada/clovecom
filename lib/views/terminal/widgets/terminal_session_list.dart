@@ -112,7 +112,7 @@ class TerminalSessionList extends StatelessWidget {
   void _showConnectDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => const ConnectDialog(),
+      builder: (_) => ConnectDialog(viewModel: viewModel),
     );
   }
 }

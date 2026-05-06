@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../../models/terminal/serial_connection_params.dart';
 import '../../../models/terminal/ssh_connection_params.dart';
@@ -7,7 +6,9 @@ import '../../../services/terminal/serial_terminal_service.dart';
 import '../../../viewmodels/terminal/terminal_viewmodel.dart';
 
 class ConnectDialog extends StatefulWidget {
-  const ConnectDialog({super.key});
+  const ConnectDialog({super.key, required this.viewModel});
+
+  final TerminalViewModel viewModel;
 
   @override
   State<ConnectDialog> createState() => _ConnectDialogState();
@@ -259,7 +260,7 @@ class _ConnectDialogState extends State<ConnectDialog> {
   }
 
   void _connect() {
-    final vm = context.read<TerminalViewModel>();
+    final vm = widget.viewModel;
     Navigator.pop(context);
 
     if (_mode == 0) {

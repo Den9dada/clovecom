@@ -33,6 +33,11 @@ class SerialTerminalService {
       Parity: _parityValue(params.parity),
     );
 
+    _port!.BaudRate = params.baudRate;
+    _port!.ByteSize = params.dataBits;
+    _port!.StopBits = params.stopBits == 1 ? 0 : 2;
+    _port!.Parity = _parityValue(params.parity);
+
     _startReading();
 
     terminal.onOutput = (data) {
