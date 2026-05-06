@@ -9,6 +9,7 @@
 // - 支持滑动切换和点击切换
 
 import 'package:flutter/material.dart';
+import '../terminal/terminal_view.dart';
 import '../serial_port/serial_port_view.dart';
 import '../usb/usb_view.dart';
 import '../network/network_view.dart';
@@ -41,7 +42,7 @@ class _HomeViewState extends State<HomeView>
     super.initState();
     // 初始化Tab控制器，设置Tab数量为4
     // vsync参数用于动画同步，避免屏幕外动画消耗资源
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     // 监听Tab切换
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
@@ -92,6 +93,17 @@ class _HomeViewState extends State<HomeView>
           unselectedLabelStyle: Theme.of(context).textTheme.labelLarge,
           // Tab项列表
           tabs: const [
+            Tab(
+              height: 38,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.terminal, size: 16),
+                  SizedBox(width: 6),
+                  Text('终端'),
+                ],
+              ),
+            ),
             // 串口通信Tab
             Tab(
               height: 38,
@@ -148,6 +160,7 @@ class _HomeViewState extends State<HomeView>
       body: IndexedStack(
         index: _currentIndex,
         children: const [
+          TerminalView(),
           // 串口通信页面
           SerialPortView(),
           // USB通信页面（预留）

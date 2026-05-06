@@ -8,7 +8,6 @@ class TerminalSession {
     required this.type,
     required this.terminal,
     this.status = SessionStatus.disconnected,
-    this.backend,
   });
 
   final String id;
@@ -16,9 +15,9 @@ class TerminalSession {
   final SessionType type;
   SessionStatus status;
   final Terminal terminal;
-  TerminalBackend? backend;
 
   bool get isConnected => status == SessionStatus.connected;
+
   String get statusLabel => switch (status) {
     SessionStatus.connected => 'Connected',
     SessionStatus.connecting => 'Connecting',
