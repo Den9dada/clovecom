@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'tools/bin_editor_tool.dart';
 import 'tools/bin_link_tool.dart';
+import 'tools/crc_tool.dart';
 import 'tools/hex_to_bin_tool.dart';
 
 class ToolboxToolDefinition {
@@ -34,6 +35,11 @@ class ToolboxToolRegistry {
       title: 'BIN拼接',
       icon: Icons.call_merge_outlined,
       builder: (_) => const BinLinkTool(),
+    ),
+    ToolboxToolDefinition(
+      title: 'CRC计算',
+      icon: Icons.calculate_outlined,
+      builder: (_) => const CrcTool(),
     ),
   ];
 }
