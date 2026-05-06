@@ -26,17 +26,26 @@ class SerialTerminalService {
     _terminal = terminal;
 
     _port = SerialPort(params.port, openNow: false);
-    _port!.openWithSettings(
-      BaudRate: params.baudRate,
-      ByteSize: params.dataBits,
-      StopBits: params.stopBits == 1 ? 0 : 2,
-      Parity: _parityValue(params.parity),
-    );
+    try {
+      _port!.openWithSettings(
+        BaudRate: params.baudRate,
+        ByteSize: params.dataBits,
+        StopBits: params.stopBits == 1 ? 0 : 2,
+        Parity: _parityValue(params.parity),
+      );
 
-    _port!.BaudRate = params.baudRate;
-    _port!.ByteSize = params.dataBits;
-    _port!.StopBits = params.stopBits == 1 ? 0 : 2;
-    _port!.Parity = _parityValue(params.parity);
+      _port!.BaudRate = params.baudRate;
+      _port!.ByteSize = params.dataBits;
+      _port!.StopBits = params.stopBits == 1 ? 0 : 2;
+      _port!.Parity = _parityValue(params.parity);
+    } catch (_) {
+      try {
+        _port?.close();
+      } catch (_) {}
+      _port = null;
+      _terminal = null;
+      rethrow;
+    }
 
     _startReading();
 
@@ -61,7 +70,8 @@ class SerialTerminalService {
 
   void _readLoop() {
     if (_port == null || _terminal == null) return;
-    final handler = _port!.handler!;
+    final handler = _port!.handler;
+    if (handler == null) return;
 
     ClearCommError(handler, _readErrors!, _readComStat!);
     final available = _readComStat!.ref.cbInQue;
@@ -113,12 +123,18 @@ class SerialTerminalService {
       free(_readOver!);
       _readOver = null;
     }
-    free(_readBytesRead!);
-    _readBytesRead = null;
-    free(_readComStat!);
-    _readComStat = null;
-    free(_readErrors!);
-    _readErrors = null;
+    if (_readBytesRead != null) {
+      free(_readBytesRead!);
+      _readBytesRead = null;
+    }
+    if (_readComStat != null) {
+      free(_readComStat!);
+      _readComStat = null;
+    }
+    if (_readErrors != null) {
+      free(_readErrors!);
+      _readErrors = null;
+    }
 
     try {
       _port?.close();
