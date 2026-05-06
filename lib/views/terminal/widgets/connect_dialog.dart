@@ -286,6 +286,21 @@ class _ConnectDialogState extends State<ConnectDialog> {
           if (v != null) setState(() => _parity = v);
         },
       ),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        value: _terminalType,
+        decoration: const InputDecoration(
+          labelText: '终端类型',
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: SshConnectionParams.terminalTypes
+            .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+            .toList(),
+        onChanged: (v) {
+          if (v != null) setState(() => _terminalType = v);
+        },
+      ),
     ];
   }
 
@@ -310,6 +325,7 @@ class _ConnectDialogState extends State<ConnectDialog> {
         dataBits: _dataBits,
         stopBits: _stopBits,
         parity: _parity,
+        terminalType: _terminalType,
       ));
     }
   }

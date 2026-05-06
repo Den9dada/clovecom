@@ -5,6 +5,7 @@ class SerialConnectionParams {
     this.dataBits = 8,
     this.stopBits = 1,
     this.parity = 'None',
+    this.terminalType = 'xterm-256color',
   });
 
   final String port;
@@ -12,6 +13,7 @@ class SerialConnectionParams {
   final int dataBits;
   final int stopBits;
   final String parity;
+  final String terminalType;
 
   String get displayName => '$port ${baudRate}bps';
 
