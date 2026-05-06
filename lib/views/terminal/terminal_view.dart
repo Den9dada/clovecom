@@ -6,6 +6,7 @@ import '../../viewmodels/terminal/terminal_viewmodel.dart';
 import 'widgets/terminal_session_list.dart';
 import 'widgets/terminal_tab_bar.dart';
 import 'widgets/terminal_pane.dart';
+import 'widgets/connect_dialog.dart';
 
 class TerminalView extends StatefulWidget {
   const TerminalView({super.key});
@@ -53,11 +54,29 @@ class _TerminalViewState extends State<TerminalView>
               '终端模块',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => viewModel.createLocalTerminal(),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('打开本地终端'),
+            const SizedBox(height: 4),
+            Text(
+              '请选择终端类型开始连接',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => _openSshDialog(context, viewModel),
+                  icon: const Icon(Icons.cloud, size: 16),
+                  label: const Text('SSH 连接'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: () => _openSerialDialog(context, viewModel),
+                  icon: const Icon(Icons.usb, size: 16),
+                  label: const Text('串口连接'),
+                ),
+              ],
             ),
           ],
         ),
@@ -87,6 +106,20 @@ class _TerminalViewState extends State<TerminalView>
           ),
         ),
       ],
+    );
+  }
+
+  void _openSshDialog(BuildContext context, TerminalViewModel viewModel) {
+    showDialog(
+      context: context,
+      builder: (_) => ConnectDialog(viewModel: viewModel, initialMode: 0),
+    );
+  }
+
+  void _openSerialDialog(BuildContext context, TerminalViewModel viewModel) {
+    showDialog(
+      context: context,
+      builder: (_) => ConnectDialog(viewModel: viewModel, initialMode: 1),
     );
   }
 

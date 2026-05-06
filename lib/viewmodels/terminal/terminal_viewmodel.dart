@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 
@@ -7,7 +5,6 @@ import '../../models/terminal/session_type.dart';
 import '../../models/terminal/terminal_session.dart';
 import '../../models/terminal/ssh_connection_params.dart';
 import '../../models/terminal/serial_connection_params.dart';
-import '../../services/terminal/local_pty_service.dart';
 import '../../services/terminal/ssh_terminal_service.dart';
 import '../../services/terminal/serial_terminal_service.dart';
 
@@ -15,7 +12,6 @@ class TerminalViewModel extends ChangeNotifier {
   final List<TerminalSession> _sessions = [];
   int _selectedSessionIndex = -1;
 
-  final LocalPtyService _localPty = LocalPtyService();
   final SshTerminalService _sshService = SshTerminalService();
   final SerialTerminalService _serialService = SerialTerminalService();
 
@@ -26,8 +22,6 @@ class TerminalViewModel extends ChangeNotifier {
           ? _sessions[_selectedSessionIndex]
           : null;
 
-  bool get hasLocal =>
-      _sessions.any((s) => s.type == SessionType.local);
   List<TerminalSession> get sshSessions =>
       _sessions.where((s) => s.type == SessionType.ssh).toList();
   List<TerminalSession> get serialSessions =>
@@ -36,37 +30,6 @@ class TerminalViewModel extends ChangeNotifier {
   void selectSession(int index) {
     if (index < 0 || index >= _sessions.length) return;
     _selectedSessionIndex = index;
-    notifyListeners();
-  }
-
-  void createLocalTerminal() {
-    if (hasLocal) {
-      final idx =
-          _sessions.indexWhere((s) => s.type == SessionType.local);
-      if (idx >= 0) {
-        _selectedSessionIndex = idx;
-        notifyListeners();
-      }
-      return;
-    }
-
-    final terminal = Terminal();
-    final session = TerminalSession(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      name: '本地Shell',
-      type: SessionType.local,
-      terminal: terminal,
-      status: SessionStatus.connected,
-    );
-
-    _localPty.start(terminal: terminal);
-
-    terminal.onOutput = (data) {
-      _localPty.pty?.write(Uint8List.fromList(data.codeUnits));
-    };
-
-    _sessions.add(session);
-    _selectedSessionIndex = _sessions.length - 1;
     notifyListeners();
   }
 
@@ -123,9 +86,7 @@ class TerminalViewModel extends ChangeNotifier {
 
     final session = _sessions[index];
 
-    if (session.type == SessionType.local) {
-      _localPty.dispose();
-    } else if (session.type == SessionType.ssh) {
+    if (session.type == SessionType.ssh) {
       _sshService.disconnect();
     } else if (session.type == SessionType.serial) {
       _serialService.disconnect();
@@ -144,9 +105,6 @@ class TerminalViewModel extends ChangeNotifier {
   }
 
   void resizeActiveTerminal(int columns, int rows) {
-    if (selectedSession?.type == SessionType.local) {
-      _localPty.resize(columns, rows);
-    }
     if (selectedSession?.type == SessionType.ssh) {
       _sshService.resize(columns, rows);
     }
@@ -154,7 +112,6 @@ class TerminalViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
-    _localPty.dispose();
     _sshService.dispose();
     _serialService.dispose();
     super.dispose();

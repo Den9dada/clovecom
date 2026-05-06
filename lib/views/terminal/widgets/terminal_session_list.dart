@@ -26,28 +26,6 @@ class TerminalSessionList extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 4),
             children: [
-              _sectionHeader('本地终端', Icons.folder_outlined, theme),
-              InkWell(
-                onTap: () => viewModel.createLocalTerminal(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.terminal,
-                        size: 15,
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text('本地Shell', style: theme.textTheme.bodySmall),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
               _sectionHeader('SSH 连接', Icons.cloud_outlined, theme),
               ...viewModel.sshSessions.map(
                 (s) => _sessionItem(s, viewModel, theme, colorScheme),

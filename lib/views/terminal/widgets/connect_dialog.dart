@@ -6,16 +6,17 @@ import '../../../services/terminal/serial_terminal_service.dart';
 import '../../../viewmodels/terminal/terminal_viewmodel.dart';
 
 class ConnectDialog extends StatefulWidget {
-  const ConnectDialog({super.key, required this.viewModel});
+  const ConnectDialog({super.key, required this.viewModel, this.initialMode = 0});
 
   final TerminalViewModel viewModel;
+  final int initialMode;
 
   @override
   State<ConnectDialog> createState() => _ConnectDialogState();
 }
 
 class _ConnectDialogState extends State<ConnectDialog> {
-  var _mode = 0;
+  late int _mode;
 
   final _hostCtrl = TextEditingController();
   final _portCtrl = TextEditingController(text: '22');
@@ -30,6 +31,12 @@ class _ConnectDialogState extends State<ConnectDialog> {
   String _parity = 'None';
   bool _customBaud = false;
   int _customBaudRate = 115200;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+  }
 
   @override
   void dispose() {
