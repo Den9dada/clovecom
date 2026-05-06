@@ -41,19 +41,14 @@ class TerminalViewModel extends ChangeNotifier {
       type: SessionType.ssh,
       terminal: terminal,
       status: SessionStatus.connecting,
+      connectionParams: params,
     );
 
     _sessions.add(session);
     _selectedSessionIndex = _sessions.length - 1;
     notifyListeners();
 
-    try {
-      await _sshService.connect(params, terminal);
-      session.status = SessionStatus.connected;
-    } catch (e) {
-      session.status = SessionStatus.disconnected;
-      terminal.write('\r\n\x1b[31mConnection failed: $e\x1b[0m\r\n');
-    }
+    await _connectSsh(session);
     notifyListeners();
   }
 
@@ -65,20 +60,61 @@ class TerminalViewModel extends ChangeNotifier {
       type: SessionType.serial,
       terminal: terminal,
       status: SessionStatus.connecting,
+      connectionParams: params,
     );
 
     _sessions.add(session);
     _selectedSessionIndex = _sessions.length - 1;
     notifyListeners();
 
+    _connectSerial(session);
+    notifyListeners();
+  }
+
+  Future<void> reconnectSession(int index) async {
+    if (index < 0 || index >= _sessions.length) return;
+    final session = _sessions[index];
+    if (session.isConnected) return;
+
+    session.status = SessionStatus.connecting;
+    notifyListeners();
+
+    if (session.type == SessionType.ssh) {
+      await _connectSsh(session);
+    } else if (session.type == SessionType.serial) {
+      _connectSerial(session);
+    }
+    notifyListeners();
+  }
+
+  Future<void> _connectSsh(TerminalSession session) async {
+    final params = session.connectionParams as SshConnectionParams;
+    _sshService.disconnect();
     try {
-      _serialService.connect(params, terminal);
+      await _sshService.connect(params, session.terminal);
       session.status = SessionStatus.connected;
     } catch (e) {
       session.status = SessionStatus.disconnected;
-      terminal.write('\r\n\x1b[31mSerial connection failed: $e\x1b[0m\r\n');
+      session.terminal.write(
+        '\r\n\x1b[31mConnection failed: $e\x1b[0m\r\n'
+        '\x1b[33mPress r to reconnect\x1b[0m\r\n',
+      );
     }
-    notifyListeners();
+  }
+
+  void _connectSerial(TerminalSession session) {
+    final params = session.connectionParams as SerialConnectionParams;
+    _serialService.disconnect();
+    try {
+      _serialService.connect(params, session.terminal);
+      session.status = SessionStatus.connected;
+    } catch (e) {
+      session.status = SessionStatus.disconnected;
+      session.terminal.write(
+        '\r\n\x1b[31mSerial connection failed: $e\x1b[0m\r\n'
+        '\x1b[33mPress r to reconnect\x1b[0m\r\n',
+      );
+    }
   }
 
   void closeSession(int index) {

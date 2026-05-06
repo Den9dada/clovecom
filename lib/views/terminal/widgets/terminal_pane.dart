@@ -43,18 +43,23 @@ const _terminalStyle = TerminalStyle(
 );
 
 class TerminalPane extends StatelessWidget {
-  const TerminalPane({super.key, required this.session});
+  const TerminalPane({
+    super.key,
+    required this.session,
+    this.onReconnect,
+  });
 
   final TerminalSession session;
+  final VoidCallback? onReconnect;
 
-  static KeyEventResult _onKeyEvent(
-    Terminal terminal,
-    FocusNode focusNode,
-    KeyEvent event,
-  ) {
+  KeyEventResult _onKeyEvent(Terminal terminal, KeyEvent event) {
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
       final character = event.character;
       if (character != null && character.isNotEmpty) {
+        if (!session.isConnected && character == 'r' && onReconnect != null) {
+          onReconnect!();
+          return KeyEventResult.handled;
+        }
         terminal.textInput(character);
         return KeyEventResult.handled;
       }
@@ -78,7 +83,7 @@ class TerminalPane extends StatelessWidget {
           textStyle: _terminalStyle,
           padding: const EdgeInsets.all(8),
           onKeyEvent: (focusNode, event) =>
-              _onKeyEvent(session.terminal, focusNode, event),
+              _onKeyEvent(session.terminal, event),
         ),
       ),
     );

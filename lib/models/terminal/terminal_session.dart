@@ -8,6 +8,7 @@ class TerminalSession {
     required this.type,
     required this.terminal,
     this.status = SessionStatus.disconnected,
+    this.connectionParams,
   });
 
   final String id;
@@ -15,6 +16,7 @@ class TerminalSession {
   final SessionType type;
   SessionStatus status;
   final Terminal terminal;
+  dynamic connectionParams;
 
   bool get isConnected => status == SessionStatus.connected;
 

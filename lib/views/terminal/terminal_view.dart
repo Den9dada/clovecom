@@ -60,7 +60,11 @@ class _TerminalViewState extends State<TerminalView>
               ],
               Expanded(
                 child: hasSessions && viewModel.selectedSession != null
-                    ? TerminalPane(session: viewModel.selectedSession!)
+                    ? TerminalPane(
+                        session: viewModel.selectedSession!,
+                        onReconnect: () =>
+                            viewModel.reconnectSession(viewModel.selectedSessionIndex),
+                      )
                     : _buildEmptyPane(context, viewModel, colorScheme),
               ),
               Divider(height: 1, color: colorScheme.outlineVariant),
