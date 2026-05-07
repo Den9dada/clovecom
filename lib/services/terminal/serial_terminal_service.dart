@@ -14,6 +14,7 @@ class SerialTerminalService {
   SerialPort? _port;
   Timer? _readTimer;
   Terminal? _terminal;
+  String Function(String)? _dataTransform;
 
   Pointer<DWORD>? _readBytesRead;
   Pointer<COMSTAT>? _readComStat;
@@ -22,7 +23,12 @@ class SerialTerminalService {
 
   bool get isConnected => _port != null;
 
-  void connect(SerialConnectionParams params, Terminal terminal) {
+  void connect(
+    SerialConnectionParams params,
+    Terminal terminal, {
+    String Function(String)? dataTransform,
+  }) {
+    _dataTransform = dataTransform;
     _terminal = terminal;
 
     _port = SerialPort(params.port, openNow: false);
@@ -94,20 +100,20 @@ class SerialTerminalService {
         bytesRead = _readBytesRead!.value;
       } else if (GetLastError() == ERROR_IO_PENDING) {
         if (WaitForSingleObject(_readOver!.ref.hEvent, 50) == 0) {
-          GetOverlappedResult(
-            handler,
-            _readOver!,
-            _readBytesRead!,
-            FALSE,
-          );
+          GetOverlappedResult(handler, _readOver!, _readBytesRead!, FALSE);
           bytesRead = _readBytesRead!.value;
         }
       }
 
       if (bytesRead > 0) {
-        _terminal!.write(
-          String.fromCharCodes(buffer.asTypedList(bytesRead)),
+        var data = utf8.decode(
+          buffer.asTypedList(bytesRead),
+          allowMalformed: true,
         );
+        if (_dataTransform != null) {
+          data = _dataTransform!(data);
+        }
+        _terminal!.write(data);
       }
     } finally {
       free(buffer);

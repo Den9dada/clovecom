@@ -10,13 +10,16 @@ class SshTerminalService {
   SSHClient? _client;
   SSHSession? _session;
   StreamSubscription? _stdoutSub;
+  String Function(String)? _dataTransform;
 
   bool get isConnected => _client != null;
 
   Future<void> connect(
     SshConnectionParams params,
-    Terminal terminal,
-  ) async {
+    Terminal terminal, {
+    String Function(String)? dataTransform,
+  }) async {
+    _dataTransform = dataTransform;
     final socket = await SSHSocket.connect(params.host, params.port);
     _client = SSHClient(
       socket,
@@ -25,15 +28,15 @@ class SshTerminalService {
     );
 
     _session = await _client!.shell(
-      pty: SSHPtyConfig(
-        type: params.terminalType,
-        width: 80,
-        height: 24,
-      ),
+      pty: SSHPtyConfig(type: params.terminalType, width: 80, height: 24),
     );
 
     _stdoutSub = _session!.stdout.cast<List<int>>().listen((data) {
-      terminal.write(utf8.decode(data, allowMalformed: true));
+      var text = utf8.decode(data, allowMalformed: true);
+      if (_dataTransform != null) {
+        text = _dataTransform!(text);
+      }
+      terminal.write(text);
     });
 
     terminal.onOutput = (data) {

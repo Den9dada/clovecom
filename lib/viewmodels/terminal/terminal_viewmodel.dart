@@ -5,6 +5,8 @@ import '../../models/terminal/session_type.dart';
 import '../../models/terminal/terminal_session.dart';
 import '../../models/terminal/ssh_connection_params.dart';
 import '../../models/terminal/serial_connection_params.dart';
+import '../../models/terminal/terminal_theme_scheme.dart';
+import '../../models/terminal/highlight_rule.dart';
 import '../../services/terminal/ssh_terminal_service.dart';
 import '../../services/terminal/serial_terminal_service.dart';
 
@@ -15,17 +17,78 @@ class TerminalViewModel extends ChangeNotifier {
   final SshTerminalService _sshService = SshTerminalService();
   final SerialTerminalService _serialService = SerialTerminalService();
 
+  TerminalThemeScheme _currentThemeScheme = TerminalThemeScheme.presets[0];
+  TerminalThemeScheme get currentThemeScheme => _currentThemeScheme;
+
+  HighlightRuleSet? _activeHighlightRuleSet;
+  HighlightRuleSet? get activeHighlightRuleSet => _activeHighlightRuleSet;
+
+  final List<HighlightRule> _customRules = [];
+  List<HighlightRule> get customRules => List.unmodifiable(_customRules);
+
+  List<HighlightRule> get effectiveRules {
+    final rules = <HighlightRule>[];
+    if (_activeHighlightRuleSet != null) {
+      for (final r in _activeHighlightRuleSet!.rules) {
+        rules.add(r);
+      }
+    }
+    for (final r in _customRules) {
+      if (r.enabled) rules.add(r);
+    }
+    return rules;
+  }
+
   List<TerminalSession> get sessions => List.unmodifiable(_sessions);
   int get selectedSessionIndex => _selectedSessionIndex;
   TerminalSession? get selectedSession =>
       _selectedSessionIndex >= 0 && _selectedSessionIndex < _sessions.length
-          ? _sessions[_selectedSessionIndex]
-          : null;
+      ? _sessions[_selectedSessionIndex]
+      : null;
 
   List<TerminalSession> get sshSessions =>
       _sessions.where((s) => s.type == SessionType.ssh).toList();
   List<TerminalSession> get serialSessions =>
       _sessions.where((s) => s.type == SessionType.serial).toList();
+
+  String Function(String) get _dataTransform => (data) {
+    final rules = effectiveRules;
+    if (rules.isEmpty) return data;
+    return applyHighlightRules(data, rules);
+  };
+
+  void setThemeScheme(TerminalThemeScheme scheme) {
+    _currentThemeScheme = scheme;
+    notifyListeners();
+  }
+
+  void setActiveHighlightRuleSet(HighlightRuleSet? ruleSet) {
+    _activeHighlightRuleSet = ruleSet;
+    notifyListeners();
+  }
+
+  void addCustomRule(HighlightRule rule) {
+    _customRules.add(rule);
+    notifyListeners();
+  }
+
+  void removeCustomRule(int index) {
+    if (index < 0 || index >= _customRules.length) return;
+    _customRules.removeAt(index);
+    notifyListeners();
+  }
+
+  void updateCustomRule(int index, HighlightRule rule) {
+    if (index < 0 || index >= _customRules.length) return;
+    _customRules[index] = rule;
+    notifyListeners();
+  }
+
+  void toggleCustomRule(int index) {
+    if (index < 0 || index >= _customRules.length) return;
+    _customRules[index].enabled = !_customRules[index].enabled;
+    notifyListeners();
+  }
 
   void selectSession(int index) {
     if (index < 0 || index >= _sessions.length) return;
@@ -91,7 +154,11 @@ class TerminalViewModel extends ChangeNotifier {
     final params = session.connectionParams as SshConnectionParams;
     _sshService.disconnect();
     try {
-      await _sshService.connect(params, session.terminal);
+      await _sshService.connect(
+        params,
+        session.terminal,
+        dataTransform: _dataTransform,
+      );
       session.status = SessionStatus.connected;
     } catch (e) {
       session.status = SessionStatus.disconnected;
@@ -106,7 +173,11 @@ class TerminalViewModel extends ChangeNotifier {
     final params = session.connectionParams as SerialConnectionParams;
     _serialService.disconnect();
     try {
-      _serialService.connect(params, session.terminal);
+      _serialService.connect(
+        params,
+        session.terminal,
+        dataTransform: _dataTransform,
+      );
       session.status = SessionStatus.connected;
     } catch (e) {
       session.status = SessionStatus.disconnected;
