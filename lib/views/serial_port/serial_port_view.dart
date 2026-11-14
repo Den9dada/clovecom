@@ -23,7 +23,6 @@ import 'package:intl/intl.dart';
 import '../../models/serial_port_model.dart';
 import '../../viewmodels/serial_port_viewmodel.dart';
 import '../../utils/hex_input_formatter.dart';
-import '../../protocols/protocol_registry.dart';
 import '../../services/status_bar_service.dart';
 import '../../ui/widgets/ds_toast.dart';
 
@@ -1236,12 +1235,15 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                     isDense: true,
                   ),
                   initialValue: viewModel.fileSendConfig.protocolName,
-                  items: ProtocolRegistry.protocols.map((p) {
-                    return DropdownMenuItem(
-                      value: p.name,
-                      child: Text(p.name, style: const TextStyle(fontSize: 13)),
-                    );
-                  }).toList(),
+                  items: [
+                    DropdownMenuItem(
+                      value: viewModel.transferProtocol.name,
+                      child: Text(
+                        viewModel.transferProtocol.name,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
                   onChanged: viewModel.isTransferBusy
                       ? null
                       : (v) {
@@ -1435,15 +1437,15 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                     isDense: true,
                   ),
                   initialValue: config.protocolName,
-                  items: ProtocolRegistry.receiveProtocols.map((p) {
-                    return DropdownMenuItem(
-                      value: p.receiveName,
+                  items: [
+                    DropdownMenuItem(
+                      value: viewModel.transferProtocol.receiveName,
                       child: Text(
-                        p.receiveName,
+                        viewModel.transferProtocol.receiveName,
                         style: const TextStyle(fontSize: 13),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ],
                   onChanged: viewModel.isTransferBusy
                       ? null
                       : (v) {

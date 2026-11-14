@@ -18,7 +18,8 @@ import 'package:clovecom/utils/file_picker_compat.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/serial_port_model.dart';
 
-import '../protocols/protocol_registry.dart';
+import '../protocols/transfer_protocol.dart';
+import '../protocols/ymodem_protocol.dart';
 import '../protocol_editor.dart';
 import '../services/firmware_protocol_binding.dart';
 import '../src/application/lua_runtime.dart';
@@ -123,6 +124,9 @@ class SerialPortViewModel extends ChangeNotifier {
   }
 
   final SerialByteTransport Function(SerialPortConfig) _openTransport;
+
+  /// 文件收发传输协议（注入依赖，默认 Ymodem-1K；测试可注入 fake）。
+  final TransferProtocol _transferProtocol;
   late final SerialPortDirectory portDirectory;
   bool _disposed = false;
   String? _connectedPortName;
@@ -142,6 +146,9 @@ class SerialPortViewModel extends ChangeNotifier {
   FileSendConfig get fileSendConfig => _fileSendConfig;
   FirmwareUpgradeConfig get firmwareConfig => _firmwareConfig;
   FileReceiveConfig get fileReceiveConfig => _fileReceiveConfig;
+
+  /// 当前文件收发传输协议（视图下拉据此取唯一选项名）。
+  TransferProtocol get transferProtocol => _transferProtocol;
   String? get errorMessage => _errorMessage;
   bool get isTransferBusy => _transfers.isBusy || _luaRun != null;
 
@@ -160,7 +167,9 @@ class SerialPortViewModel extends ChangeNotifier {
     ProtocolLibrary? protocolLibrary,
     SerialPortDirectory? directory,
     SerialByteTransport Function(SerialPortConfig)? openTransport,
-  }) : _openTransport = openTransport ?? SerialConnectionOwner.instance.open {
+    TransferProtocol? transferProtocol,
+  }) : _openTransport = openTransport ?? SerialConnectionOwner.instance.open,
+       _transferProtocol = transferProtocol ?? YmodemProtocol() {
     if (protocolLibrary != null) {
       firmwareProtocols = FirmwareProtocolBinding(protocolLibrary)
         ..addListener(notifyListeners);
@@ -700,7 +709,7 @@ class SerialPortViewModel extends ChangeNotifier {
       final data = await File(config.filePath).readAsBytes();
       if (!session.isActive) return;
 
-      final protocol = ProtocolRegistry.getByName(config.protocolName);
+      final protocol = _transferProtocol;
       await protocol.send(
         data,
         packetSize: config.packetSize,
@@ -843,7 +852,7 @@ class SerialPortViewModel extends ChangeNotifier {
     );
     notifyListeners();
     try {
-      final protocol = ProtocolRegistry.getByReceiveName(config.protocolName);
+      final protocol = _transferProtocol;
       await protocol.receive(
         savePath: savePath,
         callbacks: session.callbacks(

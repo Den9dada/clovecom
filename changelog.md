@@ -38,6 +38,13 @@
 - 验证：改动文件 `dart analyze` 零问题；CRC＋拼接 45 测试全绿；整个工具箱目录 91 测试全绿，零回归。
 - 待续（strangler 下一增量）：C6 拼接输出惰性化＋相对化布局＋`crc32_combine`/填充闭式合成（当前每次规划 `List.filled(end)` 全量分配＋全量重算 CRC，高地址固件会放大分配；`previewBytes` 被 HEX 预览消费，惰性化需改查看器数据契约）；C7 HEX 查看器通知域细分（根内容 `context.watch` 致编辑单字节整树重建，宜用 Selector）；C4 `EditBuffer` 差量存储取舍（采用或删除死代码）。均按 ADR-0001 渐进推进。
 
+### refactor: 轨道 D 扩展性（C9 删除 ProtocolRegistry，传输协议收为注入依赖）
+
+- C9 删除 `ProtocolRegistry` 浅模块（21 行纯转发：`getByName/getByReceiveName` 忽略 name 恒返回 `new YmodemProtocol()`，`defaultProtocol` 零调用方，通过 deletion test）。把“如何取得传输协议”的知识收拢到串口 VM 缝：`SerialPortViewModel` 新增注入依赖 `TransferProtocol? transferProtocol`（默认 `YmodemProtocol()`，与既有 `openTransport`/`directory` 注入模式一致），收发两处改用 `_transferProtocol`，并暴露 `transferProtocol` getter 供视图下拉取唯一选项名。生产 Ymodem 与测试 fake 构成同一缝上的两个适配器（假想缝→真缝），`TransferCallbacks` 测试面保持不变。
+- 视图收发下拉改为从 `viewModel.transferProtocol.name/receiveName` 取单选项（注册表本就只含 Ymodem，行为不变）；移除两处注册表导入。新增 2 项注入缝契约测试（默认 Ymodem-1K、注入实例同一性）。
+- 验证：改动文件 `dart analyze` 零问题；串口服务目录 34 测试全绿（含 2 新测试）；全套 215 通过／13 失败，失败数与基线一致——12 个为 Lua 工作进程未随测试环境安装（`RuntimeUnavailable`）的环境性失败、1 个 interaction_editor 既有 spinner 计时失败，均非本轨道引入。
+- 待续（strangler 下一增量）：C8 工具箱入口描述符＋注册表分配槽位、状态栏按入口 id 键控（当前 `ToolboxToolDefinition` 无 id，4 工具各自硬编码槽位号与 `_isCurrentTab` 索引，`StatusBarService` 按 int 槽键控且工具箱固定 `_statuses[3]`，新增/插入工具需改≥3 处并顺延槽号）。按 ADR-0001 渐进推进。
+
 ## 2026-10-18
 
 ### fix: 消除协议切换时接口参数框闪动
