@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:clovecom/utils/file_picker_compat.dart';
 import 'package:flutter/material.dart';
 
+import '../../../ui/widgets/ds_toast.dart';
+
 class FileDropZone extends StatefulWidget {
   const FileDropZone({
     super.key,
@@ -112,9 +114,7 @@ class _FileDropZoneState extends State<FileDropZone> {
     }
     final accepted = paths.where(_isAllowed).toList();
     if (accepted.length != paths.length && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('包含不支持的文件类型，已忽略')));
+      showDsToast('包含不支持的文件类型，已忽略', kind: DsToastKind.warning);
     }
     if (accepted.isEmpty) {
       return;

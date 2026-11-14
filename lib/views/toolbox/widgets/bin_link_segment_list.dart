@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../viewmodels/toolbox/bin_link_viewmodel.dart';
+import '../../../ui/widgets/ds_toast.dart';
 import 'bin_link_segment_card.dart';
 
 class BinLinkSegmentList extends StatelessWidget {
@@ -114,6 +115,6 @@ class BinLinkSegmentList extends StatelessWidget {
   void _showError(BuildContext context) {
     final error = context.read<BinLinkViewModel>().lastError;
     if (error == null || error.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    showDsToast(error, kind: DsToastKind.error);
   }
 }

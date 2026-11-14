@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../services/status_bar_service.dart';
+import '../../../ui/widgets/ds_toast.dart';
 import '../../../viewmodels/toolbox/bin_editor_viewmodel.dart';
 import '../widgets/hex_ascii_viewer.dart';
 import '../widgets/tool_status_panel.dart';
@@ -109,7 +110,7 @@ class _BinEditorToolState extends State<BinEditorTool>
     final error = _viewModel.lastError;
     if (error == null || error.isEmpty) return;
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    showDsToast(error, kind: DsToastKind.error);
   }
 }
 
@@ -384,7 +385,7 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
   void _showError(BuildContext context) {
     final error = context.read<BinEditorViewModel>().lastError;
     if (error == null || error.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    showDsToast(error, kind: DsToastKind.error);
   }
 
   Widget _buildFileList(BuildContext context, BinEditorViewModel vm) {

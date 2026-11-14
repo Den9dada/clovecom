@@ -14,6 +14,15 @@
 - 沉淀领域用语 CONTEXT.md：保存基线导出重定基、串口传输会话跨页独占、语义事件四分类。
 - 记录 ADR-0001 串口双栈以新 src 词汇为准（strangler 收拢所有权）、ADR-0002 退役 SnackBar 统一四个呈现适配器。
 
+### refactor: 轨道 A 统一异步反馈与提示弹窗（C1→C2）
+
+- C1 复活 `DsDialogAction` 为每动作一个的异步反馈深模块：`run()` 内化防重入、清旧错、错误保留、忙碌复位与销毁守卫；呈现经 `onFailed` 适配器缝注入（缺省由弹窗保留错误、`showDsToast` 瞬态轻提示、ViewModel setter 持久内联）。
+- `interaction_editor.perform` 与 `app_controller._perform` 改为委托该模块，删除两处重复的 try-catch 反馈不变量；协议控制器由此补上此前缺失的防重入守卫，`lastError` 改为读取模块错误态。新增 8 项接口级测试（直接实例化模块断言不变量，不 pump 整页）。
+- C2 退役 SnackBar（ADR-0002）：串口/固件 `errorStream` 改用 DsToast 瞬态适配器，并新增绑定 `errorMessage` 的持久内联 banner，修复串口打开失败仅靠 3 秒即逝弹窗导致的静默问题。
+- 工具箱 `_showError` 统一为 DsToast；冲突检查按 `hasConflicts` 分 warning/success，文件类型忽略用 warning；三处裸 `AlertDialog`（自定义填充、新增 HEX、导出 HEX）迁移到 `DsDialog`/`DsInput`/`DsButton` 外壳；移除主题 `snackBarTheme` 死配置。
+- 验证：改动目录 `flutter analyze` 零问题；新增测试 8/8 通过；全套测试 13 个失败经基线复核为既有失败，非本轨道引入。
+- 已知遗留：工具箱 `lastError` 混用警告与错误语义（如重复导入提示），语义细分归轨道 C（C4）。
+
 ## 2026-10-18
 
 ### fix: 消除协议切换时接口参数框闪动

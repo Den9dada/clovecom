@@ -80,7 +80,7 @@ class SerialPortViewModel extends ChangeNotifier {
   /// 错误信息
   String? _errorMessage;
 
-  /// 错误通知流（用于 SnackBar 弹窗）
+  /// 错误通知流（瞬态适配器：视图订阅后经 DsToast 轻提示；持久错误另见 errorMessage）
   final StreamController<String> _errorController =
       StreamController<String>.broadcast();
 

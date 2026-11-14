@@ -29,7 +29,12 @@ class _InteractionEditorState extends State<InteractionEditor> {
   final _focus = FocusNode();
   final _vertical = ScrollController(), _gutter = ScrollController();
   Timer? _validation;
-  bool _changing = false, _busy = false;
+  bool _changing = false;
+
+  /// 异步反馈深模块：内化防重入、忙碌复位、销毁守卫与错误分发；
+  /// 呈现经 onFailed 注入瞬态 Toast 适配器。_busy 仅读取其状态。
+  final _action = DsDialogAction();
+  bool get _busy => _action.busy;
   bool _showApi = false;
   double _apiHeightRatio = 0.5;
   bool _showFind = true;
@@ -45,6 +50,7 @@ class _InteractionEditorState extends State<InteractionEditor> {
   @override
   void initState() {
     super.initState();
+    _action.addListener(_onActionChanged);
     _code.addListener(_edited);
     _vertical.addListener(() {
       if (_gutter.hasClients) {
@@ -88,16 +94,15 @@ class _InteractionEditorState extends State<InteractionEditor> {
     setState(() {});
   }
 
-  Future<void> perform(Future<void> Function() action) async {
-    setState(() => _busy = true);
-    try {
-      await action();
-    } catch (error) {
-      showDsToast('$error', kind: DsToastKind.error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+  /// 模块状态变化（忙碌起落、错误）时重建以刷新按钮可用态。
+  void _onActionChanged() {
+    if (mounted) setState(() {});
   }
+
+  Future<void> perform(Future<void> Function() action) => _action.run(
+    action,
+    onFailed: (error) => showDsToast('$error', kind: DsToastKind.error),
+  );
 
   Future<void> validateCurrent(InteractionDraft current) async {
     _validation?.cancel();
@@ -191,6 +196,8 @@ class _InteractionEditorState extends State<InteractionEditor> {
   @override
   void dispose() {
     _validation?.cancel();
+    _action.removeListener(_onActionChanged);
+    _action.dispose();
     _code.dispose();
     _undo.dispose();
     _find.dispose();

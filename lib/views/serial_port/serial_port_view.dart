@@ -25,6 +25,7 @@ import '../../viewmodels/serial_port_viewmodel.dart';
 import '../../utils/hex_input_formatter.dart';
 import '../../protocols/protocol_registry.dart';
 import '../../services/status_bar_service.dart';
+import '../../ui/widgets/ds_toast.dart';
 
 /// 串口通信视图组件
 class SerialPortView extends StatelessWidget {
@@ -126,16 +127,8 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
       final viewModel = context.read<SerialPortViewModel>();
       _errorSub = viewModel.errorStream.listen((message) {
         if (mounted) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message, style: const TextStyle(fontSize: 13)),
-              backgroundColor: Theme.of(context).colorScheme.error,
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(12),
-            ),
-          );
+          // 瞬态适配器：即时轻提示；持久错误另由 errorMessage 内联 banner 呈现。
+          showDsToast(message, kind: DsToastKind.error);
         }
       });
     });
@@ -177,6 +170,8 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
             children: [
               // 顶部：端口选择行（横跨全宽）
               _buildPortBar(viewModel, colorScheme),
+              // 持久错误内联面板：打开失败等错误常驻可见，直至连接成功清除。
+              _buildErrorBanner(viewModel, colorScheme),
               const SizedBox(height: 12),
               Expanded(
                 child: compact
@@ -224,6 +219,41 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
           ),
         );
       },
+    );
+  }
+
+  /// 持久错误适配器：把 viewModel.errorMessage 渲染为内联 banner。
+  /// 无错误时零尺寸；连接成功（VM 清空 errorMessage）后自动消失。
+  Widget _buildErrorBanner(
+    SerialPortViewModel viewModel,
+    ColorScheme colorScheme,
+  ) {
+    final message = viewModel.errorMessage;
+    if (message == null || message.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.error.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, size: 16, color: colorScheme.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

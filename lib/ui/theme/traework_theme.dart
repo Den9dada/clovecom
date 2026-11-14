@@ -266,17 +266,6 @@ ThemeData buildTraeWorkTheme() {
         color: TraeWorkColors.textTertiary,
       ),
     ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: TraeWorkColors.bgInvert,
-      contentTextStyle: const TextStyle(
-        color: TraeWorkColors.textOnBrand,
-        fontSize: TraeWorkFontSizes.bodyMd,
-      ),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(TraeWorkRadius.r8),
-      ),
-    ),
     dividerTheme: const DividerThemeData(
       color: TraeWorkColors.borderNeutralL1,
       thickness: 1,

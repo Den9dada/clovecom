@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../../../models/toolbox/toolbox_file_entry.dart';
 import '../../../services/toolbox/hex_text_parser.dart';
 import '../../../services/status_bar_service.dart';
+import '../../../ui/widgets/ds_toast.dart';
+import '../../../ui/widgets/ds_widgets.dart';
 import '../../../viewmodels/toolbox/hex_to_bin_viewmodel.dart';
 import '../widgets/hex_ascii_viewer.dart';
 import '../widgets/tool_status_panel.dart';
@@ -114,7 +116,7 @@ class _HexToBinToolState extends State<HexToBinTool>
     final error = _viewModel.lastError;
     if (error == null || error.isEmpty) return;
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    showDsToast(error, kind: DsToastKind.error);
   }
 }
 
@@ -409,7 +411,7 @@ class _HexToBinToolContent extends StatelessWidget {
     );
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => DsDialog(
         title: Text(batch ? '批量导出HEX - 起始地址' : '导出HEX - 起始地址'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -419,22 +421,20 @@ class _HexToBinToolContent extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
-            TextField(
+            DsInput(
               controller: addrCtrl,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '起始地址',
-                hintText: '支持十六进制(0x...)或十进制',
-              ),
+              expand: true,
+              label: '起始地址',
+              placeholder: '支持十六进制(0x...)或十进制',
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
+          DsButton(label: '取消', onPressed: () => Navigator.pop(ctx)),
+          DsButton(
+            label: '导出',
+            variant: DsButtonVariant.brand,
             onPressed: () async {
               Navigator.pop(ctx);
               final addrText = addrCtrl.text;
@@ -451,7 +451,6 @@ class _HexToBinToolContent extends StatelessWidget {
               }
               if (context.mounted) _showError(context);
             },
-            child: const Text('导出'),
           ),
         ],
       ),
@@ -461,6 +460,6 @@ class _HexToBinToolContent extends StatelessWidget {
   void _showError(BuildContext context) {
     final error = context.read<HexToBinViewModel>().lastError;
     if (error == null || error.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    showDsToast(error, kind: DsToastKind.error);
   }
 }

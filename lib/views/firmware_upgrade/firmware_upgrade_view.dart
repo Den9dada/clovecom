@@ -7,6 +7,7 @@ import '../../widgets/app_dropdown.dart';
 import '../../widgets/baud_rate_input.dart';
 import '../../viewmodels/serial_port_viewmodel.dart';
 import '../../services/status_bar_service.dart';
+import '../../ui/widgets/ds_toast.dart';
 
 /// 独立持有连接和升级任务，切换导航时保留页面状态。
 class FirmwareUpgradeView extends StatefulWidget {
@@ -37,9 +38,8 @@ class _FirmwareUpgradeViewState extends State<FirmwareUpgradeView> {
     _vm.addListener(_updated);
     _errors = _vm.errorStream.listen((message) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        // 瞬态适配器：即时轻提示；持久错误另由 errorMessage 内联 banner 呈现。
+        showDsToast(message, kind: DsToastKind.error);
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -91,6 +91,8 @@ class _FirmwareUpgradeViewState extends State<FirmwareUpgradeView> {
               child: _connectionCard(),
             ),
           ),
+          // 持久错误内联面板：连接/升级失败常驻可见，直至错误清除。
+          _buildErrorBanner(colors),
           const SizedBox(height: 12),
           Expanded(
             child: LayoutBuilder(
@@ -131,6 +133,37 @@ class _FirmwareUpgradeViewState extends State<FirmwareUpgradeView> {
                   ],
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 持久错误适配器：把 _vm.errorMessage 渲染为内联 banner，无错误时零尺寸。
+  Widget _buildErrorBanner(ColorScheme colors) {
+    final message = _vm.errorMessage;
+    if (message == null || message.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.error.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, size: 16, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.onErrorContainer,
+              ),
             ),
           ),
         ],

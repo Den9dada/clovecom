@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../services/status_bar_service.dart';
+import '../../../ui/widgets/ds_toast.dart';
+import '../../../ui/widgets/ds_widgets.dart';
 import '../../../viewmodels/toolbox/bin_link_viewmodel.dart';
 import '../widgets/bin_link_minimap.dart';
 import '../widgets/bin_link_segment_layout.dart';
@@ -87,25 +89,24 @@ class _BinLinkToolState extends State<BinLinkTool>
     final ctrl = TextEditingController(text: _viewModel.fillByteHex);
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => DsDialog(
         title: const Text('自定义填充值'),
-        content: TextField(
+        content: DsInput(
           controller: ctrl,
           autofocus: true,
-          decoration: const InputDecoration(hintText: '输入单字节HEX值，如 FF'),
+          expand: true,
+          placeholder: '输入单字节HEX值，如 FF',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
+          DsButton(label: '取消', onPressed: () => Navigator.pop(ctx)),
+          DsButton(
+            label: '确认',
+            variant: DsButtonVariant.brand,
             onPressed: () {
               _viewModel.setFillByte(ctrl.text);
               Navigator.pop(ctx);
               _showError();
             },
-            child: const Text('确认'),
           ),
         ],
       ),
@@ -159,7 +160,7 @@ class _BinLinkToolState extends State<BinLinkTool>
     final error = _viewModel.lastError;
     if (error == null || error.isEmpty) return;
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    showDsToast(error, kind: DsToastKind.error);
   }
 }
 
@@ -213,11 +214,15 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
                 _showError(context);
               },
               onCheckConflicts: () {
-                final msg = context.read<BinLinkViewModel>().checkConflicts();
+                final vm = context.read<BinLinkViewModel>();
+                final msg = vm.checkConflicts();
                 if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(msg)));
+                  showDsToast(
+                    msg,
+                    kind: vm.hasConflicts
+                        ? DsToastKind.warning
+                        : DsToastKind.success,
+                  );
                 }
               },
               onExport: () async {
@@ -358,11 +363,15 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
                 _showError(context);
               },
               onCheckConflicts: () {
-                final msg = context.read<BinLinkViewModel>().checkConflicts();
+                final vm = context.read<BinLinkViewModel>();
+                final msg = vm.checkConflicts();
                 if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(msg)));
+                  showDsToast(
+                    msg,
+                    kind: vm.hasConflicts
+                        ? DsToastKind.warning
+                        : DsToastKind.success,
+                  );
                 }
               },
               onExport: () async {
@@ -452,36 +461,33 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
     final hexCtrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => DsDialog(
         title: const Text('新增HEX片段'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            DsInput(
               controller: addressCtrl,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '片段地址',
-                hintText: '支持十六进制(0x...)或十进制',
-              ),
+              expand: true,
+              label: '片段地址',
+              placeholder: '支持十六进制(0x...)或十进制',
             ),
             const SizedBox(height: 12),
-            TextField(
+            DsInput(
               controller: hexCtrl,
               maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'HEX数据',
-                hintText: '输入十六进制字节，如: 48 65 6C 6C 6F',
-              ),
+              expand: true,
+              label: 'HEX数据',
+              placeholder: '输入十六进制字节，如: 48 65 6C 6C 6F',
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
+          DsButton(label: '取消', onPressed: () => Navigator.pop(ctx)),
+          DsButton(
+            label: '添加',
+            variant: DsButtonVariant.brand,
             onPressed: () {
               context.read<BinLinkViewModel>().addManualHex(
                 addressText: addressCtrl.text,
@@ -490,7 +496,6 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
               Navigator.pop(ctx);
               _showError(context);
             },
-            child: const Text('添加'),
           ),
         ],
       ),
@@ -507,6 +512,6 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
   void _showError(BuildContext context) {
     final error = context.read<BinLinkViewModel>().lastError;
     if (error == null || error.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    showDsToast(error, kind: DsToastKind.error);
   }
 }
