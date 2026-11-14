@@ -6,6 +6,8 @@
 import 'dart:async';
 import '../services/serial/serial_transfer_session.dart';
 import '../services/serial/serial_byte_transport.dart';
+import '../services/serial/serial_connection_owner.dart';
+import '../services/serial/serial_config_translation.dart';
 import '../services/serial/serial_port_catalog.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -158,7 +160,7 @@ class SerialPortViewModel extends ChangeNotifier {
     ProtocolLibrary? protocolLibrary,
     SerialPortDirectory? directory,
     SerialByteTransport Function(SerialPortConfig)? openTransport,
-  }) : _openTransport = openTransport ?? Win32SerialTransport.new {
+  }) : _openTransport = openTransport ?? SerialConnectionOwner.instance.open {
     if (protocolLibrary != null) {
       firmwareProtocols = FirmwareProtocolBinding(protocolLibrary)
         ..addListener(notifyListeners);
@@ -1066,19 +1068,8 @@ class SerialPortViewModel extends ChangeNotifier {
       baudRate: _config.baudRate,
       dataBits: _config.dataBits,
       stopBits: _config.stopBits,
-      parity: const [
-        'None',
-        'Odd',
-        'Even',
-        'Mark',
-        'Space',
-      ].indexOf(_config.parity),
-      flowControl: const {
-        'None': 'none',
-        'RTS/CTS': 'rts_cts',
-        'DTR/DSR': 'dtr_dsr',
-        'XON/XOFF': 'xon_xoff',
-      }[_config.flowControl]!,
+      parity: SerialConfigTranslation.parityIndexOf(_config.parity),
+      flowControl: SerialConfigTranslation.flowCodeOf(_config.flowControl),
     );
     _firmwareStopping = false;
     final run = firmwareProtocols!.library.runtime.start(

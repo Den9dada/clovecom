@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/serial_port_model.dart';
 import '../protocol_editor.dart';
+import 'serial/serial_config_translation.dart';
 
 /// 已载入内容与协议库分离；保存新版本不会改变升级输入。
 class FirmwareProtocolBinding extends ChangeNotifier {
@@ -69,23 +70,12 @@ class FirmwareProtocolBinding extends ChangeNotifier {
         baudRate: persistent['baud_rate'] as int?,
         dataBits: persistent['data_bits'] as int?,
         stopBits: persistent['stop_bits'] as int?,
-        parity: persistent['parity'] == null
-            ? null
-            : const {
-                'none': 'None',
-                'odd': 'Odd',
-                'even': 'Even',
-                'mark': 'Mark',
-                'space': 'Space',
-              }[persistent['parity']],
-        flowControl: persistent['flow_control'] == null
-            ? null
-            : const {
-                'none': 'None',
-                'rts_cts': 'RTS/CTS',
-                'dtr_dsr': 'DTR/DSR',
-                'xon_xoff': 'XON/XOFF',
-              }[persistent['flow_control']],
+        parity: SerialConfigTranslation.parityDisplayOf(
+          persistent['parity'] as String?,
+        ),
+        flowControl: SerialConfigTranslation.flowDisplayOf(
+          persistent['flow_control'] as String?,
+        ),
       );
       // 只在明确载入时填充一次，之后使用用户在界面上的最新配置。
       applyConfig(config);
