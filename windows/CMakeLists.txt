@@ -51,6 +51,7 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
+add_subdirectory("../native/lua_runner" "lua_runner")
 
 
 # Generated plugin build rules, which manage building the plugins and adding
@@ -106,3 +107,9 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Lua 解释器和宿主 SDK 随应用分发，不依赖用户安装 Dart/Lua。
+install(TARGETS clovertls_lua_runner RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/lua" COMPONENT Runtime)
+install(FILES "../native/lua_runner/host_sdk.lua" "../third_party/lua/README" "../third_party/lua/LICENSE"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/lua" COMPONENT Runtime)
+install(FILES "../assets/protocols/point_table.lua" "../assets/protocols/ymodem.lua" DESTINATION "${CMAKE_INSTALL_PREFIX}/lua/examples" COMPONENT Runtime)

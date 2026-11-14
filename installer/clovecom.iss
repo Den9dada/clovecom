@@ -43,12 +43,23 @@ function FindWindowByWindowName(lpClassName: String; lpWindowName: String): Long
   external 'FindWindowW@user32.dll stdcall';
 
 function InitializeSetup(): Boolean;
+var
+  WinVer: TWindowsVersion;
 begin
   Result := True;
 
   if not IsWin64 then
   begin
-    MsgBox('不支持当前系统。请在 Windows 10/11 x64 系统上安装 CloveCom。', mbCriticalError, MB_OK);
+    MsgBox('不支持 32 位系统。请在 Windows 10/11 x64 系统上安装 CloveCom。', mbCriticalError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+
+  GetWindowsVersionEx(WinVer);
+  if (WinVer.Major < 10) then
+  begin
+    MsgBox('不支持当前系统。CloveCom 需要 Windows 10 或更高版本。' + #13#10 +
+      '检测到的版本: Windows ' + IntToStr(WinVer.Major) + '.' + IntToStr(WinVer.Minor), mbCriticalError, MB_OK);
     Result := False;
     Exit;
   end;
@@ -92,6 +103,7 @@ begin
     AddMissingFile(Missing, 'msvcp140.dll');
     AddMissingFile(Missing, 'vcruntime140.dll');
     AddMissingFile(Missing, 'vcruntime140_1.dll');
+    AddMissingFile(Missing, 'CH341DLLA64.dll');
 
     if Missing <> '' then
     begin

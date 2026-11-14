@@ -1,0 +1,390 @@
+{
+  "metadata": {
+    "project": "CloveRTLS",
+    "reviewedOn": "2026-10-15",
+    "theme": "light",
+    "sizeUnit": "Flutter logical pixel; CSS export uses px",
+    "source": "lib/ui/theme/traework_theme.dart",
+    "note": "颜色及尺寸类自动提取；字体、组件及断点为人工核对快照。"
+  },
+  "colors": {
+    "bgBaseDefault": {
+      "flutterArgb": "0xFFFFFFFF",
+      "css": "#FFFFFF",
+      "opacity": 1.0
+    },
+    "bgBaseSecondary": {
+      "flutterArgb": "0xFFF5F5F5",
+      "css": "#F5F5F5",
+      "opacity": 1.0
+    },
+    "bgBaseTertiary": {
+      "flutterArgb": "0xFFE5E5E5",
+      "css": "#E5E5E5",
+      "opacity": 1.0
+    },
+    "bgOverlay1": {
+      "flutterArgb": "0x14737373",
+      "css": "#73737314",
+      "opacity": 0.078431
+    },
+    "bgOverlay2": {
+      "flutterArgb": "0x1F737373",
+      "css": "#7373731F",
+      "opacity": 0.121569
+    },
+    "bgOverlay3": {
+      "flutterArgb": "0x29737373",
+      "css": "#73737329",
+      "opacity": 0.160784
+    },
+    "bgOverlay4": {
+      "flutterArgb": "0x33737373",
+      "css": "#73737333",
+      "opacity": 0.2
+    },
+    "bgInvert": {
+      "flutterArgb": "0xFF262626",
+      "css": "#262626",
+      "opacity": 1.0
+    },
+    "bgInvertHover": {
+      "flutterArgb": "0xFF404040",
+      "css": "#404040",
+      "opacity": 1.0
+    },
+    "bgInvertActive": {
+      "flutterArgb": "0xFF171717",
+      "css": "#171717",
+      "opacity": 1.0
+    },
+    "bgBrand": {
+      "flutterArgb": "0xFF4B3FE3",
+      "css": "#4B3FE3",
+      "opacity": 1.0
+    },
+    "bgBrandHover": {
+      "flutterArgb": "0xFF6A6FFF",
+      "css": "#6A6FFF",
+      "opacity": 1.0
+    },
+    "bgBrandActive": {
+      "flutterArgb": "0xFF3F31C6",
+      "css": "#3F31C6",
+      "opacity": 1.0
+    },
+    "bgBrandDisabled": {
+      "flutterArgb": "0x384B3FE3",
+      "css": "#4B3FE338",
+      "opacity": 0.219608
+    },
+    "bgBrandPopup": {
+      "flutterArgb": "0x5CAAB7FF",
+      "css": "#AAB7FF5C",
+      "opacity": 0.360784
+    },
+    "textDefault": {
+      "flutterArgb": "0xFF171717",
+      "css": "#171717",
+      "opacity": 1.0
+    },
+    "textDefaultHover": {
+      "flutterArgb": "0xFF262626",
+      "css": "#262626",
+      "opacity": 1.0
+    },
+    "textSecondary": {
+      "flutterArgb": "0xFF404040",
+      "css": "#404040",
+      "opacity": 1.0
+    },
+    "textTertiary": {
+      "flutterArgb": "0xFF737373",
+      "css": "#737373",
+      "opacity": 1.0
+    },
+    "textDisabled": {
+      "flutterArgb": "0xFFA1A1A1",
+      "css": "#A1A1A1",
+      "opacity": 1.0
+    },
+    "textOnBrand": {
+      "flutterArgb": "0xFFFFFFFF",
+      "css": "#FFFFFF",
+      "opacity": 1.0
+    },
+    "textBrand": {
+      "flutterArgb": "0xFF4B3FE3",
+      "css": "#4B3FE3",
+      "opacity": 1.0
+    },
+    "textBrandHover": {
+      "flutterArgb": "0xFF6A6FFF",
+      "css": "#6A6FFF",
+      "opacity": 1.0
+    },
+    "iconDefault": {
+      "flutterArgb": "0xFF262626",
+      "css": "#262626",
+      "opacity": 1.0
+    },
+    "iconSecondary": {
+      "flutterArgb": "0xFF404040",
+      "css": "#404040",
+      "opacity": 1.0
+    },
+    "iconTertiary": {
+      "flutterArgb": "0xFF737373",
+      "css": "#737373",
+      "opacity": 1.0
+    },
+    "iconDisabled": {
+      "flutterArgb": "0xFFA1A1A1",
+      "css": "#A1A1A1",
+      "opacity": 1.0
+    },
+    "iconOnBrand": {
+      "flutterArgb": "0xFFFFFFFF",
+      "css": "#FFFFFF",
+      "opacity": 1.0
+    },
+    "iconBrand": {
+      "flutterArgb": "0xFF4B3FE3",
+      "css": "#4B3FE3",
+      "opacity": 1.0
+    },
+    "borderNeutralL1": {
+      "flutterArgb": "0x1F737373",
+      "css": "#7373731F",
+      "opacity": 0.121569
+    },
+    "borderNeutralL2": {
+      "flutterArgb": "0x2E737373",
+      "css": "#7373732E",
+      "opacity": 0.180392
+    },
+    "borderNeutralL3": {
+      "flutterArgb": "0x5C737373",
+      "css": "#7373735C",
+      "opacity": 0.360784
+    },
+    "borderBrand": {
+      "flutterArgb": "0xFF4B3FE3",
+      "css": "#4B3FE3",
+      "opacity": 1.0
+    },
+    "borderControl": {
+      "flutterArgb": "0xFFB3B3B3",
+      "css": "#B3B3B3",
+      "opacity": 1.0
+    },
+    "borderControlHover": {
+      "flutterArgb": "0xFF858585",
+      "css": "#858585",
+      "opacity": 1.0
+    },
+    "statusSuccess": {
+      "flutterArgb": "0xFF15A877",
+      "css": "#15A877",
+      "opacity": 1.0
+    },
+    "statusWarning": {
+      "flutterArgb": "0xFFE27900",
+      "css": "#E27900",
+      "opacity": 1.0
+    },
+    "statusError": {
+      "flutterArgb": "0xFFE8463A",
+      "css": "#E8463A",
+      "opacity": 1.0
+    },
+    "statusPrimary": {
+      "flutterArgb": "0xFF2F74FF",
+      "css": "#2F74FF",
+      "opacity": 1.0
+    },
+    "brandYellow100": {
+      "flutterArgb": "0xFFFEF3C7",
+      "css": "#FEF3C7",
+      "opacity": 1.0
+    },
+    "brandYellow200": {
+      "flutterArgb": "0xFFFDE68A",
+      "css": "#FDE68A",
+      "opacity": 1.0
+    },
+    "brandYellow700": {
+      "flutterArgb": "0xFFB45309",
+      "css": "#B45309",
+      "opacity": 1.0
+    },
+    "brandBlue100": {
+      "flutterArgb": "0xFFDBEAFE",
+      "css": "#DBEAFE",
+      "opacity": 1.0
+    },
+    "brandBlue300": {
+      "flutterArgb": "0xFF93C5FD",
+      "css": "#93C5FD",
+      "opacity": 1.0
+    },
+    "brandPurple100": {
+      "flutterArgb": "0xFFEDE9FE",
+      "css": "#EDE9FE",
+      "opacity": 1.0
+    },
+    "brandGreen200": {
+      "flutterArgb": "0xFFA7F3D0",
+      "css": "#A7F3D0",
+      "opacity": 1.0
+    }
+  },
+  "spacing": {
+    "s2": 2.0,
+    "s4": 4.0,
+    "s6": 6.0,
+    "s8": 8.0,
+    "s10": 10.0,
+    "s12": 12.0,
+    "s16": 16.0,
+    "s20": 20.0,
+    "s24": 24.0,
+    "s32": 32.0
+  },
+  "radius": {
+    "r2": 2.0,
+    "r4": 4.0,
+    "r6": 6.0,
+    "r8": 8.0,
+    "r12": 12.0,
+    "r16": 16.0,
+    "r24": 24.0,
+    "r32": 32.0,
+    "full": 999.0
+  },
+  "fontSizes": {
+    "bodyXs": 10.0,
+    "bodySm": 11.0,
+    "bodyMd": 12.0,
+    "bodyBase": 14.0,
+    "bodyLg": 18.0,
+    "heading3xs": 11.0,
+    "heading2xs": 12.0,
+    "headingXs": 13.0,
+    "headingSm": 16.0,
+    "headingMd": 20.0,
+    "headingLg": 22.0,
+    "headingXl": 24.0
+  },
+  "font": {
+    "ui": [
+      "MiSans",
+      "Microsoft YaHei",
+      "Segoe UI"
+    ],
+    "mono": [
+      "Consolas",
+      "Menlo",
+      "Courier New",
+      "Microsoft YaHei"
+    ],
+    "bundledWeights": [
+      400,
+      500,
+      600,
+      700
+    ],
+    "note": "参考包不含字体文件；Flutter 未统一固定行高。"
+  },
+  "components": {
+    "button": {
+      "height": 28,
+      "compactHeight": 24,
+      "radius": 6,
+      "fontSize": 12,
+      "compactFontSize": 11,
+      "iconSize": 14,
+      "gap": 6,
+      "paddingX": 12,
+      "compactPaddingX": 8
+    },
+    "input": {
+      "minHeight": 28,
+      "defaultMaxWidth": 240,
+      "fontSize": 14,
+      "radius": 6,
+      "focusBorderWidth": 1.5
+    },
+    "select": {
+      "height": 28,
+      "defaultMaxWidth": 160,
+      "fontSize": 14,
+      "radius": 6
+    },
+    "card": {
+      "radius": 8,
+      "padding": 12,
+      "borderWidth": 1
+    },
+    "dialog": {
+      "radius": 12,
+      "inset": 24,
+      "titleFontSize": 16,
+      "titleWeight": 600
+    },
+    "tag": {
+      "radius": 4,
+      "fontSize": 10,
+      "fontWeight": 500,
+      "paddingX": 6,
+      "paddingY": 2
+    },
+    "switch": {
+      "width": 36,
+      "height": 20,
+      "thumbSize": 16,
+      "durationMs": 120
+    },
+    "toast": {
+      "radius": 8,
+      "maxWidth": 360,
+      "edgeInset": 16,
+      "gap": 8,
+      "lifetimeMs": 3000,
+      "fadeMs": 180,
+      "maxVisible": 4,
+      "progressHeight": 3
+    },
+    "tagTable": {
+      "headerHeight": 36,
+      "rowHeight": 36,
+      "minSharedColumnWidth": 64
+    }
+  },
+  "window": {
+    "minimumLogicalWidth": 1120.0,
+    "minimumLogicalHeight": 640.0,
+    "minContentWidth": 960.0,
+    "navWidth": 200.0,
+    "navRailWidth": 56.0,
+    "preferredWidth": 1440.0,
+    "preferredHeight": 900.0
+  },
+  "density": {
+    "compact": "width < 1280 OR height < 720; checked first",
+    "expanded": "not compact AND width >= 1600",
+    "regular": "otherwise"
+  },
+  "interaction": {
+    "precedence": [
+      "disabled",
+      "pressed",
+      "hovered"
+    ],
+    "independent": [
+      "focused",
+      "selected"
+    ],
+    "note": "共享品牌按钮禁用使用灰底；danger+selected 仍保留红字。"
+  }
+}

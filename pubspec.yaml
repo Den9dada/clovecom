@@ -33,35 +33,35 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.9
   
   # 状态管理
-  provider: ^6.1.2
+  provider: ^6.1.5+1
   
   # 串口通信
-  serial_port_win32: ^1.0.2
+  serial_port_win32: ^3.0.0
   
   # FFI 支持（串口读取需要直接调用 Win32 API）
   ffi: ^2.2.0
-  win32: ^5.15.0
+  win32: ^6.4.0
   
   # 文件选择
-  file_picker: ^8.0.0+1
+  file_picker: ^13.1.0
+  file_selector: ^1.1.0
+  crypto: ^3.0.7
   
   # 桌面文件拖拽
-  desktop_drop: ^0.7.0
-  cross_file: ^0.3.5+2
+  desktop_drop: ^0.8.4
+  cross_file: ^0.3.5+5
   
   # 路径提供者
-  path_provider: ^2.1.0
+  path_provider: ^2.1.6
   
   # 国际化
-  intl: ^0.19.0
+  intl: ^0.20.3
   
-  # 终端模拟器
-  xterm: ^4.0.0
-  flutter_pty: ^0.4.2
-  dartssh2: ^2.17.1
+  archive: ^4.3.0
+  window_manager: 0.5.2
 
 dev_dependencies:
   flutter_test:
@@ -85,8 +85,22 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  fonts:
+    - family: MiSans
+      fonts:
+        - asset: assets/fonts/MiSans/MiSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/MiSans/MiSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/MiSans/MiSans-Semibold.ttf
+          weight: 600
+        - asset: assets/fonts/MiSans/MiSans-Bold.ttf
+          weight: 700
+
   assets:
-    - assets/scripts/
+    - assets/protocols/
+    - docs/development/lua-host-api.md
+    - docs/development/lua-script-guide.md
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

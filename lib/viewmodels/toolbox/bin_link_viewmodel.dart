@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:clovecom/utils/file_picker_compat.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/toolbox/bin_link_segment.dart';
@@ -18,8 +19,33 @@ class BinLinkViewModel extends ChangeNotifier {
   String get fillByteHex => HexTextParser.formatHexByte(_fillByte);
   List<int> get previewBytes => _preview.bytes;
   int get previewBaseAddress => _preview.baseAddress;
-  String? get lastError => _lastError;
-  bool get canExport => _segments.isNotEmpty && _lastError == null;
+  int get previewEndAddress => _preview.layoutEndAddress;
+  String? get lastError => _lastError ?? _preview.error;
+  bool get canExport => _preview.canExport && _lastError == null;
+
+  int get enabledCount => _preview.enabledCount;
+  int get totalOriginalSize => _preview.originalSize;
+  int get totalPaddedSize => _preview.bytes.length;
+  int get paddingBytes => _preview.paddingBytes;
+  int? get outputCrc32 => _preview.outputCrc32;
+
+  String get outputCrc32Hex => _preview.outputCrc32 != null
+      ? '0x${_preview.outputCrc32!.toRadixString(16).padLeft(8, '0').toUpperCase()}'
+      : '--';
+
+  String get totalUsedFormatted => _formatSize(totalOriginalSize);
+  String get totalPaddedFormatted => _formatSize(totalPaddedSize);
+  String get paddingFormatted => _formatSize(paddingBytes);
+
+  bool get hasConflicts => _preview.overlappingPairs.isNotEmpty;
+  String get conflictStatus => hasConflicts ? '检测到重叠' : '无冲突';
+
+  List<({int i, int j})> get overlappingPairs => _preview.overlappingPairs;
+
+  int getSegmentCrc(int index) {
+    if (index < 0 || index >= _segments.length) return 0;
+    return BinLinkService.computeSegmentCrc(_segments[index].bytes);
+  }
 
   void clearError() {
     _lastError = null;
@@ -29,11 +55,14 @@ class BinLinkViewModel extends ChangeNotifier {
   Future<void> importPaths(List<String> paths) async {
     for (final path in paths) {
       try {
+        final bytes = await File(path).readAsBytes();
+        final crc = BinLinkService.computeSegmentCrc(bytes);
         _segments.add(
           BinLinkSegment(
             name: _fileNameFromPath(path),
             address: _nextAddress(),
-            bytes: await File(path).readAsBytes(),
+            bytes: bytes,
+            crc: crc,
           ),
         );
       } catch (error) {
@@ -50,6 +79,7 @@ class BinLinkViewModel extends ChangeNotifier {
       if (bytes.isEmpty) {
         throw const FormatException('手动 HEX 数据不能为空');
       }
+      final crc = BinLinkService.computeSegmentCrc(bytes);
       if (!_replaceOverlappingSegment(address, bytes)) {
         _segments.add(
           BinLinkSegment(
@@ -57,8 +87,18 @@ class BinLinkViewModel extends ChangeNotifier {
             address: address,
             bytes: bytes,
             isManual: true,
+            crc: crc,
           ),
         );
+      } else {
+        final idx = _segments.indexWhere(
+          (s) =>
+              address >= s.address && (address + bytes.length) <= s.endAddress,
+        );
+        if (idx >= 0) {
+          final crc = BinLinkService.computeSegmentCrc(_segments[idx].bytes);
+          _segments[idx] = _segments[idx].copyWith(crc: crc);
+        }
       }
       _lastError = null;
     } catch (error) {
@@ -85,11 +125,31 @@ class BinLinkViewModel extends ChangeNotifier {
     _refreshPreview();
   }
 
+  void updateSegmentName(int index, String name) {
+    if (index < 0 || index >= _segments.length) return;
+    _segments[index] = _segments[index].copyWith(name: name);
+    notifyListeners();
+  }
+
   void removeSegment(int index) {
     if (index < 0 || index >= _segments.length) {
       return;
     }
     _segments.removeAt(index);
+    _refreshPreview();
+  }
+
+  void toggleSegmentEnabled(int index) {
+    if (index < 0 || index >= _segments.length) return;
+    _segments[index] = _segments[index].copyWith(
+      enabled: !_segments[index].enabled,
+    );
+    _refreshPreview();
+  }
+
+  void updateSegmentAlignment(int index, int alignment) {
+    if (index < 0 || index >= _segments.length) return;
+    _segments[index] = _segments[index].copyWith(alignment: alignment);
     _refreshPreview();
   }
 
@@ -109,6 +169,33 @@ class BinLinkViewModel extends ChangeNotifier {
     _refreshPreview();
   }
 
+  void setFillByteValue(int value) {
+    if (value < 0 || value > 0xFF) return;
+    _fillByte = value;
+    _refreshPreview();
+  }
+
+  void autoArrange() {
+    if (_segments.isEmpty) return;
+    // 从地址 0 开始，按顺序延顺放置，消除所有重叠
+    var nextAddress = 0;
+    for (var i = 0; i < _segments.length; i++) {
+      final alignedAddr = BinLinkService.alignAddress(
+        nextAddress,
+        _segments[i].alignment,
+      );
+      _segments[i] = _segments[i].copyWith(address: alignedAddr);
+      nextAddress = alignedAddr + _segments[i].bytes.length;
+    }
+    _lastError = null;
+    _refreshPreview();
+  }
+
+  String checkConflicts() {
+    _refreshPreview();
+    return _preview.error ?? '未检测到冲突';
+  }
+
   Future<void> exportLinked() async {
     _refreshPreview();
     if (!canExport) {
@@ -116,7 +203,8 @@ class BinLinkViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final path = await FilePicker.platform.saveFile(
+    final snapshot = _preview.bytes;
+    final path = await FilePickerCompat.saveFile(
       dialogTitle: '导出拼接BIN文件',
       fileName: 'linked.bin',
       type: FileType.custom,
@@ -125,18 +213,14 @@ class BinLinkViewModel extends ChangeNotifier {
     if (path == null) {
       return;
     }
-    await File(path).writeAsBytes(_preview.bytes);
+    await File(path).writeAsBytes(snapshot);
     _lastError = null;
     notifyListeners();
   }
 
   void _refreshPreview() {
-    try {
-      _preview = BinLinkService.link(_segments, fillByte: _fillByte);
-      _lastError = null;
-    } catch (error) {
-      _lastError = error.toString();
-    }
+    _preview = BinLinkService.plan(_segments, fillByte: _fillByte);
+    _lastError = null;
     notifyListeners();
   }
 
@@ -145,7 +229,7 @@ class BinLinkViewModel extends ChangeNotifier {
       return 0;
     }
     return _segments
-        .map((segment) => segment.endAddress)
+        .map((segment) => segment.alignedEndAddress)
         .reduce((previous, current) => previous > current ? previous : current);
   }
 
@@ -170,5 +254,16 @@ class BinLinkViewModel extends ChangeNotifier {
       return true;
     }
     return false;
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes >= 1048576) {
+      return '${(bytes / 1048576).toStringAsFixed(1)} MB';
+    }
+    if (bytes >= 1024) {
+      final kb = bytes / 1024;
+      return '${kb.toStringAsFixed(kb == kb.roundToDouble() ? 0 : 1)} KB';
+    }
+    return '$bytes B';
   }
 }

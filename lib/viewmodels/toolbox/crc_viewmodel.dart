@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../models/toolbox/crc_file_entry.dart';
 import '../../models/toolbox/crc_params.dart';
 import '../../services/toolbox/crc_calculator.dart';
 
@@ -9,9 +10,7 @@ class CrcViewModel extends ChangeNotifier {
   DataInputMode _inputMode = DataInputMode.hex;
   String _hexText = '';
   String _asciiText = '';
-  List<int>? _fileBytes;
-  String? _fileName;
-  int _fileSize = 0;
+  final List<CrcFileEntry> _files = [];
 
   String? _selectedPreset = 'CRC-16/MODBUS';
   CrcParams _customParams = const CrcParams(
@@ -31,9 +30,8 @@ class CrcViewModel extends ChangeNotifier {
   DataInputMode get inputMode => _inputMode;
   String get hexText => _hexText;
   String get asciiText => _asciiText;
-  List<int>? get fileBytes => _fileBytes;
-  String? get fileName => _fileName;
-  int get fileSize => _fileSize;
+  List<CrcFileEntry> get files => List.unmodifiable(_files);
+  bool get hasFiles => _files.isNotEmpty;
   String? get selectedPreset => _selectedPreset;
   CrcParams get customParams => _customParams;
   bool get isAboutPinned => _isAboutPinned;
@@ -48,6 +46,9 @@ class CrcViewModel extends ChangeNotifier {
     return _customParams;
   }
 
+  List<CrcFileEntry> get selectedFiles =>
+      _files.where((f) => f.selected).toList();
+
   List<int>? get currentBytes {
     switch (_inputMode) {
       case DataInputMode.hex:
@@ -55,8 +56,22 @@ class CrcViewModel extends ChangeNotifier {
       case DataInputMode.ascii:
         return _asciiText.isEmpty ? null : _asciiText.codeUnits;
       case DataInputMode.file:
-        return _fileBytes;
+        final selected = selectedFiles;
+        if (selected.isEmpty) return null;
+        final all = <int>[];
+        for (final f in selected) {
+          all.addAll(f.bytes);
+        }
+        return all;
     }
+  }
+
+  int get selectedFileSize {
+    var total = 0;
+    for (final f in selectedFiles) {
+      total += f.size;
+    }
+    return total;
   }
 
   void setInputMode(DataInputMode mode) {
@@ -74,18 +89,33 @@ class CrcViewModel extends ChangeNotifier {
     _recalculate();
   }
 
-  Future<void> importFile(List<String> paths) async {
-    if (paths.isEmpty) return;
-    final path = paths.first;
-    try {
-      _fileName = path.split(RegExp(r'[\\/]')).last;
-      _fileBytes = await File(path).readAsBytes();
-      _fileSize = _fileBytes!.length;
-    } catch (_) {
-      _fileBytes = null;
-      _fileName = null;
-      _fileSize = 0;
+  Future<void> importFiles(List<String> paths) async {
+    for (final path in paths) {
+      try {
+        final name = path.split(RegExp(r'[\\/]')).last;
+        final bytes = await File(path).readAsBytes();
+        _files.add(CrcFileEntry(
+          name: name,
+          path: path,
+          bytes: bytes,
+          size: bytes.length,
+        ));
+      } catch (_) {
+        // 跳过无法读取的文件
+      }
     }
+    _recalculate();
+  }
+
+  void removeFile(int index) {
+    if (index < 0 || index >= _files.length) return;
+    _files.removeAt(index);
+    _recalculate();
+  }
+
+  void toggleFileSelection(int index) {
+    if (index < 0 || index >= _files.length) return;
+    _files[index].selected = !_files[index].selected;
     _recalculate();
   }
 
@@ -182,6 +212,11 @@ class CrcViewModel extends ChangeNotifier {
     }
     _result = CrcCalculator.calculate(bytes, effectiveParams);
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   static List<int>? _parseHex(String text) {

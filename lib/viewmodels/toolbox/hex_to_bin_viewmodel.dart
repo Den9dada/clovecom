@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:clovecom/utils/file_picker_compat.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/toolbox/toolbox_file_entry.dart';
 import '../../services/toolbox/hex_parser.dart';
+import '../../services/toolbox/hex_writer.dart';
 
 class HexToBinViewModel extends ChangeNotifier {
   final List<ToolboxFileEntry> _entries = [];
@@ -25,7 +27,11 @@ class HexToBinViewModel extends ChangeNotifier {
   List<int> get selectedBytes => selectedEntry?.bytes ?? <int>[];
   int get selectedBaseAddress => selectedEntry?.baseAddress ?? 0;
   bool get canExportCurrent => selectedEntry?.canExport ?? false;
+  bool get canExportCurrentBin => selectedEntry?.canExportBin ?? false;
+  bool get canExportCurrentHex => selectedEntry?.canExportHex ?? false;
   bool get canExportBatch => _entries.any((entry) => entry.canExport);
+  bool get canExportBatchBin => _entries.any((entry) => entry.canExportBin);
+  bool get canExportBatchHex => _entries.any((entry) => entry.canExportHex);
 
   void clearError() {
     _lastError = null;
@@ -172,7 +178,7 @@ class HexToBinViewModel extends ChangeNotifier {
       return;
     }
 
-    final path = await FilePicker.platform.saveFile(
+    final path = await FilePickerCompat.saveFile(
       dialogTitle: '导出BIN文件',
       fileName: '${_baseName(entry.name)}.bin',
       type: FileType.custom,
@@ -197,7 +203,7 @@ class HexToBinViewModel extends ChangeNotifier {
       return;
     }
 
-    final directory = await FilePicker.platform.getDirectoryPath(
+    final directory = await FilePickerCompat.getDirectoryPath(
       dialogTitle: '选择批量导出目录',
     );
     if (directory == null) {
@@ -211,6 +217,65 @@ class HexToBinViewModel extends ChangeNotifier {
     }
     for (var index = 0; index < _entries.length; index++) {
       if (_entries[index].canExport) {
+        _entries[index] = _entries[index].copyWith(
+          status: ToolboxFileStatus.exported,
+        );
+      }
+    }
+    _lastError = null;
+    notifyListeners();
+  }
+
+  Future<void> exportCurrentHex({int baseAddress = 0}) async {
+    final entry = selectedEntry;
+    if (entry == null || !entry.canExportHex || entry.bytes == null) {
+      _lastError = '没有可导出为HEX的BIN文件';
+      notifyListeners();
+      return;
+    }
+
+    final path = await FilePickerCompat.saveFile(
+      dialogTitle: '导出HEX文件',
+      fileName: '${_baseName(entry.name)}.hex',
+      type: FileType.custom,
+      allowedExtensions: const ['hex'],
+    );
+    if (path == null) return;
+
+    final hexContent = HexWriter.bytesToHex(entry.bytes!,
+        baseAddress: baseAddress);
+    await File(path).writeAsString(hexContent);
+    _entries[_selectedIndex] = entry.copyWith(
+      status: ToolboxFileStatus.exported,
+    );
+    _lastError = null;
+    notifyListeners();
+  }
+
+  Future<void> exportBatchHex({int baseAddress = 0}) async {
+    final validEntries =
+        _entries.where((entry) => entry.canExportHex).toList();
+    if (validEntries.isEmpty) {
+      _lastError = '没有可批量导出为HEX的BIN文件';
+      notifyListeners();
+      return;
+    }
+
+    final directory = await FilePickerCompat.getDirectoryPath(
+      dialogTitle: '选择批量导出目录',
+    );
+    if (directory == null) return;
+
+    for (final entry in validEntries) {
+      final hexContent = HexWriter.bytesToHex(entry.bytes!,
+          baseAddress: baseAddress);
+      final output = File(
+        '$directory${Platform.pathSeparator}${_baseName(entry.name)}.hex',
+      );
+      await output.writeAsString(hexContent);
+    }
+    for (var index = 0; index < _entries.length; index++) {
+      if (_entries[index].canExportHex) {
         _entries[index] = _entries[index].copyWith(
           status: ToolboxFileStatus.exported,
         );

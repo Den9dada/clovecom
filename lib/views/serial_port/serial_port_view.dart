@@ -1,3 +1,5 @@
+import '../../widgets/baud_rate_input.dart';
+import 'package:clovecom/widgets/app_dropdown.dart';
 // 串口通信视图文件
 //
 // 该文件实现了串口通信的用户界面，采用MVVM架构中的View层。
@@ -13,13 +15,16 @@
 // - 下方：发送区（支持文本、十六进制、文件发送）
 
 import 'dart:async';
+import '../../widgets/serial_port_input.dart';
 import 'package:flutter/material.dart';
+import '../../ui/desktop_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/serial_port_model.dart';
 import '../../viewmodels/serial_port_viewmodel.dart';
 import '../../utils/hex_input_formatter.dart';
 import '../../protocols/protocol_registry.dart';
+import '../../services/status_bar_service.dart';
 
 /// 串口通信视图组件
 class SerialPortView extends StatelessWidget {
@@ -29,9 +34,56 @@ class SerialPortView extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => SerialPortViewModel(),
-      child: const _SerialPortViewContent(),
+      child: const _SerialPortStatusBinder(child: _SerialPortViewContent()),
     );
   }
+}
+
+/// 监听 SerialPortViewModel 变化，在 listener 中上报状态栏
+class _SerialPortStatusBinder extends StatefulWidget {
+  const _SerialPortStatusBinder({required this.child});
+  final Widget child;
+
+  @override
+  State<_SerialPortStatusBinder> createState() =>
+      _SerialPortStatusBinderState();
+}
+
+class _SerialPortStatusBinderState extends State<_SerialPortStatusBinder> {
+  late final SerialPortViewModel _vm;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm = context.read<SerialPortViewModel>();
+    _vm.addListener(_updateStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateStatus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _vm.removeListener(_updateStatus);
+    super.dispose();
+  }
+
+  void _updateStatus() {
+    final vm = _vm;
+    StatusBarService().update(
+      0,
+      StatusBarInfo(
+        text: vm.state.isConnected
+            ? '已连接 ${vm.config.portName} @ ${vm.config.baudRate}'
+            : '未连接',
+        icon: vm.state.isConnected ? Icons.check_circle : Icons.circle_outlined,
+        color: vm.state.isConnected ? Colors.green : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// 串口通信视图内容组件
@@ -44,13 +96,13 @@ class _SerialPortViewContent extends StatefulWidget {
 
 /// 串口通信视图内容状态类
 class _SerialPortViewContentState extends State<_SerialPortViewContent> {
-  static const Color _terminalBackground = Color(0xFF07111F);
-  static const Color _terminalPanel = Color(0xFF0F1B2D);
-  static const Color _terminalBorder = Color(0xFF1E2D44);
-  static const Color _terminalText = Color(0xFFE2E8F0);
-  static const Color _terminalMuted = Color(0xFF8EA3BA);
-  static const Color _rxColor = Color(0xFF34D399);
-  static const Color _txColor = Color(0xFF60A5FA);
+  static const Color _terminalBackground = Color(0xFFFFFFFF);
+  static const Color _terminalPanel = Color(0xFFF5F5F5);
+  static const Color _terminalBorder = Color(0xFFE5E5E5);
+  static const Color _terminalText = Color(0xFF171717);
+  static const Color _terminalMuted = Color(0xFF737373);
+  static const Color _rxColor = Color(0xFF15A877);
+  static const Color _txColor = Color(0xFF4B3FE3);
 
   final TextEditingController _sendController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -128,17 +180,31 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
               const SizedBox(height: 12),
               Expanded(
                 child: compact
-                    ? Column(
-                        children: [
-                          Expanded(
-                            child: _buildDataPanel(viewModel, colorScheme),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 230,
-                            child: _buildConfigPanel(viewModel, colorScheme),
-                          ),
-                        ],
+                    ? LayoutBuilder(
+                        builder: (context, innerConstraints) {
+                          // 矮窗口下压缩配置区高度（面板自身可滚动），
+                          // 保证数据面板至少能容纳日志标题栏与发送区。
+                          final configHeight =
+                              (innerConstraints.maxHeight - 250).clamp(
+                                150.0,
+                                230.0,
+                              );
+                          return Column(
+                            children: [
+                              Expanded(
+                                child: _buildDataPanel(viewModel, colorScheme),
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                height: configHeight,
+                                child: _buildConfigPanel(
+                                  viewModel,
+                                  colorScheme,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       )
                     : Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,40 +300,11 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
         const SizedBox(width: 8),
         SizedBox(
           width: 144,
-          child: DropdownButtonFormField<int>(
-            isExpanded: true,
-            dropdownColor: colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
-            menuMaxHeight: 280,
-            iconEnabledColor: colorScheme.onSurfaceVariant,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
-            decoration: const InputDecoration(
-              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              isDense: true,
-            ),
-            initialValue: viewModel.config.baudRate,
-            items:
-                [
-                  1200,
-                  2400,
-                  4800,
-                  9600,
-                  19200,
-                  38400,
-                  57600,
-                  115200,
-                  230400,
-                  460800,
-                  921600,
-                ].map((rate) {
-                  return DropdownMenuItem(value: rate, child: Text('$rate'));
-                }).toList(),
+          child: BaudRateInput(
+            value: viewModel.config.baudRate,
             onChanged: viewModel.state.isConnected
                 ? null
-                : (v) => viewModel.updateConfig(baudRate: v!),
+                : (rate) => viewModel.updateConfig(baudRate: rate),
           ),
         ),
       ],
@@ -287,59 +324,21 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
               label: '端口',
               colorScheme: colorScheme,
               flex: 1,
-              child: DropdownButtonFormField<String>(
-                isExpanded: true,
-                dropdownColor: colorScheme.surface,
-                borderRadius: BorderRadius.circular(8),
-                menuMaxHeight: 320,
-                iconEnabledColor: colorScheme.onSurfaceVariant,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-                decoration: const InputDecoration(
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  isDense: true,
-                  hintText: '选择端口',
-                ),
-                initialValue: viewModel.config.portName.isEmpty
-                    ? null
-                    : viewModel.config.portName,
-                items: viewModel.availablePorts.map((port) {
-                  return DropdownMenuItem(
-                    value: port.portName,
-                    child: Tooltip(
-                      message: '${port.friendlyName}\n${port.hardwareID}',
-                      child: Text(
-                        port.displayText,
-                        style: const TextStyle(fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+              child: SerialPortInput(
+                directory: viewModel.portDirectory,
+                value: viewModel.config.portName,
+                enabled: !viewModel.state.isConnected,
+                onChanged: (value) {
+                  final ports = viewModel.availablePorts.where(
+                    (p) => p.portName == value,
                   );
-                }).toList(),
-                onChanged: viewModel.state.isConnected
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          final port = viewModel.availablePorts.firstWhere(
-                            (p) => p.portName == value,
-                            orElse: () => PortDetailInfo(
-                              portName: value,
-                              friendlyName: '',
-                              hardwareID: '',
-                              manufactureName: '',
-                            ),
-                          );
-                          viewModel.updateConfig(
-                            portName: value,
-                            portFriendlyName: port.friendlyName,
-                          );
-                        }
-                      },
+                  viewModel.updateConfig(
+                    portName: value,
+                    portFriendlyName: ports.isEmpty
+                        ? ''
+                        : ports.first.friendlyName,
+                  );
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -387,7 +386,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
           foregroundColor: isConnected
               ? colorScheme.onError
               : colorScheme.onPrimary,
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
         ),
       ),
     );
@@ -520,7 +519,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
           ),
         ),
         Expanded(
-          child: DropdownButtonFormField<T>(
+          child: AppDropdownFormField<T>(
             isExpanded: true,
             dropdownColor: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(8),
@@ -782,21 +781,15 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
   }
 
   double _resolveSendAreaHeight(double maxHeight) {
-    if (maxHeight.isInfinite) {
-      return 260;
-    }
-
-    if (maxHeight >= 640) {
-      return 220;
-    }
-    if (maxHeight >= 520) {
-      return 204;
-    }
-    if (maxHeight >= 420) {
-      return 188;
-    }
-
-    return (maxHeight * 0.42).clamp(158.0, 184.0);
+    if (maxHeight.isInfinite) return 260;
+    if (maxHeight >= 640) return 220;
+    if (maxHeight >= 480) return 200;
+    // 矮窗口下保留发送区最低可用高度（Tab 栏 + 输入行 + 发送按钮列），
+    // 避免文本发送页内的固定高度按钮列溢出。
+    final preferred = maxHeight * 0.40;
+    const floor = 176.0;
+    if (preferred >= floor) return preferred;
+    return floor <= maxHeight ? floor : maxHeight;
   }
 
   /// 构建数据日志区
@@ -940,6 +933,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: _terminalMuted,
               fontFamily: 'Consolas',
+              fontFamilyFallback: const ['Menlo', 'Courier New', 'MiSans'],
               fontSize: 10,
             ),
           ),
@@ -968,6 +962,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: _terminalText,
                 fontFamily: 'Consolas',
+                fontFamilyFallback: const ['Menlo', 'Courier New', 'MiSans'],
                 fontSize: 12,
               ),
               softWrap: true,
@@ -992,7 +987,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
             tabs: const [
               Tab(text: '数据发送'),
               Tab(text: '文件发送'),
-              Tab(text: '固件升级'),
+              Tab(text: '文件接收'),
             ],
             labelStyle: Theme.of(context).textTheme.labelSmall,
             unselectedLabelStyle: Theme.of(context).textTheme.labelSmall,
@@ -1010,7 +1005,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
               children: [
                 _buildTextSendArea(viewModel, colorScheme),
                 _buildFileSendArea(viewModel, colorScheme),
-                _buildFirmwareUpgradeArea(viewModel, colorScheme),
+                _buildFileReceiveArea(viewModel, colorScheme),
               ],
             ),
           ),
@@ -1070,6 +1065,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                     textAlignVertical: TextAlignVertical.top,
                     style: const TextStyle(
                       fontFamily: 'Consolas',
+                      fontFamilyFallback: ['Menlo', 'Courier New', 'MiSans'],
                       fontSize: 13,
                     ),
                     decoration: InputDecoration(
@@ -1141,7 +1137,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
     SerialPortViewModel viewModel,
     ColorScheme colorScheme,
   ) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(12),
       child: Column(
         children: [
@@ -1192,7 +1188,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
               Text('协议:', style: Theme.of(context).textTheme.labelSmall),
               const SizedBox(width: 8),
               Expanded(
-                child: DropdownButtonFormField<String>(
+                child: AppDropdownFormField<String>(
                   isExpanded: true,
                   dropdownColor: colorScheme.surface,
                   borderRadius: BorderRadius.circular(8),
@@ -1216,7 +1212,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                       child: Text(p.name, style: const TextStyle(fontSize: 13)),
                     );
                   }).toList(),
-                  onChanged: viewModel.fileSendConfig.isSending
+                  onChanged: viewModel.isTransferBusy
                       ? null
                       : (v) {
                           if (v != null) {
@@ -1227,78 +1223,6 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          // 发送配置（仅分包发送协议显示）
-          if (viewModel.fileSendConfig.protocolName == '分包发送')
-            Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Text(
-                        '每包:',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: TextField(
-                          controller: _packetSizeController,
-                          decoration: const InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            isDense: true,
-                            suffixText: 'B',
-                          ),
-                          keyboardType: TextInputType.number,
-                          onChanged: (v) {
-                            final size = int.tryParse(v);
-                            if (size != null && size > 0) {
-                              viewModel.updateFileSendConfig(packetSize: size);
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Text(
-                        '间隔:',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: TextField(
-                          controller: _intervalController,
-                          decoration: const InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            isDense: true,
-                            suffixText: 'ms',
-                          ),
-                          keyboardType: TextInputType.number,
-                          onChanged: (v) {
-                            final interval = int.tryParse(v);
-                            if (interval != null && interval > 0) {
-                              viewModel.updateFileSendConfig(
-                                sendInterval: interval,
-                              );
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
           // 进度条
           if (viewModel.fileSendConfig.fileSize > 0) ...[
             const SizedBox(height: 8),
@@ -1322,15 +1246,14 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
               ],
             ),
           ],
-          const Spacer(),
+          const SizedBox(height: 12),
           // 按钮
           Row(
             children: [
               Expanded(
                 child: FilledButton.icon(
                   onPressed:
-                      viewModel.state.isConnected &&
-                          !viewModel.fileSendConfig.isSending
+                      viewModel.state.isConnected && !viewModel.isTransferBusy
                       ? viewModel.startFileSend
                       : null,
                   icon: const Icon(Icons.play_arrow, size: 16),
@@ -1349,10 +1272,7 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                       : null,
                   icon: const Icon(Icons.stop, size: 16),
                   label: const Text('停止'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colorScheme.error,
-                    side: BorderSide(color: colorScheme.error),
-                  ),
+                  style: desktopActionStyle(DesktopActionKind.danger),
                 ),
               ),
             ],
@@ -1362,19 +1282,20 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
     );
   }
 
-  /// 构建固件升级区
-  Widget _buildFirmwareUpgradeArea(
+  /// 构建文件接收区
+  Widget _buildFileReceiveArea(
     SerialPortViewModel viewModel,
     ColorScheme colorScheme,
   ) {
-    final config = viewModel.firmwareConfig;
-    final isUpgrading = config.isUpgrading;
+    final config = viewModel.fileReceiveConfig;
+    final hasDefaultDir = config.defaultSaveDir.isNotEmpty;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 固件文件选择
+          // 保存路径选择
           Row(
             children: [
               Expanded(
@@ -1389,16 +1310,18 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                   child: Row(
                     children: [
                       Icon(
-                        Icons.system_update_outlined,
+                        Icons.folder_outlined,
                         size: 16,
-                        color: colorScheme.onSurfaceVariant,
+                        color: colorScheme.primary,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          config.firmwareName.isEmpty
-                              ? '未选择固件 (.bin)'
-                              : config.firmwareName,
+                          config.savePath.isNotEmpty
+                              ? config.fileName
+                              : hasDefaultDir
+                              ? '自动保存（使用发送端文件名）'
+                              : '请设置存储路径',
                           style: Theme.of(context).textTheme.bodySmall,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1409,13 +1332,15 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
               ),
               const SizedBox(width: 8),
               OutlinedButton(
-                onPressed: isUpgrading ? null : viewModel.selectFirmwareFile,
-                child: const Text('选择固件'),
+                onPressed: config.isReceiving
+                    ? null
+                    : viewModel.selectReceivePath,
+                child: const Text('另存为'),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          // 升级脚本选择
+          // 默认目录设置
           Row(
             children: [
               Expanded(
@@ -1430,16 +1355,14 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                   child: Row(
                     children: [
                       Icon(
-                        Icons.code_outlined,
+                        Icons.download,
                         size: 16,
                         color: colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          config.scriptName.isEmpty
-                              ? '默认脚本（分包发送）'
-                              : config.scriptName,
+                          hasDefaultDir ? config.defaultSaveDir : '未设置默认存储目录',
                           style: Theme.of(context).textTheme.bodySmall,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1449,31 +1372,69 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                 ),
               ),
               const SizedBox(width: 8),
-              if (config.scriptName.isNotEmpty)
-                IconButton(
-                  onPressed: isUpgrading ? null : viewModel.clearFirmwareScript,
-                  icon: const Icon(Icons.close, size: 16),
-                  tooltip: '恢复默认',
-                  visualDensity: VisualDensity.compact,
-                ),
               OutlinedButton(
-                onPressed: isUpgrading ? null : viewModel.selectFirmwareScript,
-                child: const Text('选择脚本'),
+                onPressed: config.isReceiving
+                    ? null
+                    : viewModel.selectDefaultReceiveDir,
+                child: const Text('默认目录'),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          // 进度条（仅在选择了固件或正在升级时显示）
-          if (config.firmwareSize > 0 || isUpgrading) ...[
+          // 协议选择
+          Row(
+            children: [
+              Text('协议:', style: Theme.of(context).textTheme.labelSmall),
+              const SizedBox(width: 8),
+              Expanded(
+                child: AppDropdownFormField<String>(
+                  isExpanded: true,
+                  dropdownColor: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  menuMaxHeight: 240,
+                  iconEnabledColor: colorScheme.onSurfaceVariant,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: const InputDecoration(
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    isDense: true,
+                  ),
+                  initialValue: config.protocolName,
+                  items: ProtocolRegistry.receiveProtocols.map((p) {
+                    return DropdownMenuItem(
+                      value: p.receiveName,
+                      child: Text(
+                        p.receiveName,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: viewModel.isTransferBusy
+                      ? null
+                      : (v) {
+                          if (v != null) {
+                            viewModel.updateFileReceiveConfig(protocolName: v);
+                          }
+                        },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 进度条
+          if (config.isReceiving || config.receivedBytes > 0) ...[
             Row(
               children: [
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: isUpgrading && config.progress <= 0
-                          ? null
-                          : config.progress,
+                      value: config.totalBytes > 0 ? config.progress : null,
                       minHeight: 6,
                       backgroundColor: colorScheme.surfaceContainerHighest,
                     ),
@@ -1481,39 +1442,39 @@ class _SerialPortViewContentState extends State<_SerialPortViewContent> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${(config.progress * 100).toStringAsFixed(1)}%',
+                  viewModel.formatBytes(config.receivedBytes),
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
               ],
             ),
           ],
-          const Spacer(),
+          const SizedBox(height: 12),
           // 按钮
           Row(
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: viewModel.state.isConnected && !isUpgrading
-                      ? viewModel.startFirmwareUpgrade
+                  onPressed:
+                      viewModel.state.isConnected && !viewModel.isTransferBusy
+                      ? viewModel.startFileReceive
                       : null,
-                  icon: const Icon(Icons.upgrade, size: 16),
-                  label: const Text('开始升级'),
+                  icon: const Icon(Icons.play_arrow, size: 16),
+                  label: const Text('开始接收'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: colorScheme.tertiary,
-                    foregroundColor: colorScheme.onTertiary,
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: isUpgrading ? viewModel.stopFirmwareUpgrade : null,
+                  onPressed: config.isReceiving
+                      ? viewModel.stopFileReceive
+                      : null,
                   icon: const Icon(Icons.stop, size: 16),
                   label: const Text('停止'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colorScheme.error,
-                    side: BorderSide(color: colorScheme.error),
-                  ),
+                  style: desktopActionStyle(DesktopActionKind.danger),
                 ),
               ),
             ],

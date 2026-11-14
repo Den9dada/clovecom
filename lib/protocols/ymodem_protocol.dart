@@ -1,297 +1,450 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
-import 'package:serial_port_win32/serial_port_win32.dart';
+
 import 'transfer_protocol.dart';
+import '../models/toolbox/crc_params.dart';
+import '../services/toolbox/crc_calculator.dart';
 
 /// Ymodem-1K 传输协议
 ///
-/// 基于 Ymodem-1K 协议的文件传输，支持 CRC-16 校验。
-/// 适用于支持 Ymodem 协议的嵌入式设备固件升级。
-///
-/// 协议流程：
-///   1. 等待接收端发送 'C' 进入 CRC 模式
-///   2. 发送文件名包 (SOH, seq=0)
-///   3. 分包发送数据 (STX, 1024B/包)
-///   4. 发送 EOT 结束
-///   5. 发送空结束包
+/// 严格遵循 YModem 标准：接收端每次 ACK 后发 'C' 驱动下一块传输。
 class YmodemProtocol implements TransferProtocol {
+  // ── 常量 ──
   static const int _soh = 0x01;
   static const int _stx = 0x02;
   static const int _eot = 0x04;
   static const int _ack = 0x06;
-  static const int _crc = 0x43; // 'C'
+  static const int _nak = 0x15;
+  static const int _can = 0x18;
+  static const int _crc = 0x43;
 
   static const int _sohSize = 128;
   static const int _stxSize = 1024;
 
-  /// CRC-16/XMODEM 查找表
-  static const List<int> _crc16Table = [
-    0, 4129, 8258, 12387, 16516, 20645, 24774, 28903,
-    33032, 37161, 41290, 45419, 49548, 53677, 57806, 61935,
-    4657, 528, 12915, 8786, 21173, 17044, 29431, 25302,
-    37689, 33560, 45947, 41818, 54205, 50076, 62463, 58334,
-    9314, 13379, 1056, 5121, 25830, 29895, 17572, 21637,
-    42346, 46411, 34088, 38153, 58862, 62927, 50604, 54669,
-    13907, 9842, 5649, 1584, 30423, 26358, 22165, 18100,
-    46939, 42874, 38681, 34616, 63455, 59390, 55197, 51132,
-    18532, 22597, 26662, 30727, 2272, 6337, 10402, 14499,
-    51532, 55661, 59662, 63791, 35272, 39401, 43402, 47531,
-    23157, 19028, 31287, 27158, 6897, 2768, 15027, 10898,
-    56189, 52060, 64319, 60190, 39929, 35800, 48059, 43930,
-    27814, 31879, 19684, 23749, 11298, 15363, 3168, 7233,
-    60846, 64911, 52716, 56781, 44330, 48395, 36200, 40265,
-    32407, 28342, 24277, 20212, 15891, 11826, 7761, 3696,
-    65439, 61374, 57309, 53244, 48923, 44858, 40793, 36728,
-    37256, 33193, 45514, 41451, 53516, 49453, 61774, 57711,
-    4224, 161, 12482, 8419, 20484, 16421, 28742, 24679,
-    33721, 37784, 41979, 46042, 49981, 54044, 58239, 62302,
-    689, 4752, 8947, 13010, 16949, 21012, 25207, 29270,
-    46570, 42443, 38312, 34185, 62830, 58703, 54572, 50445,
-    13538, 9411, 5280, 1153, 29798, 25671, 21540, 17413,
-    42971, 47098, 34713, 38840, 59231, 63358, 50973, 55100,
-    9939, 14066, 1681, 5808, 26199, 30326, 17941, 22068,
-    55628, 51565, 63758, 59695, 39368, 35305, 47498, 43435,
-    22596, 18533, 30726, 26663, 6336, 2273, 14466, 10403,
-    52093, 56156, 60223, 64286, 35833, 39896, 43963, 48026,
-    19061, 23124, 27191, 31254, 2801, 6864, 10931, 14994,
-    64814, 60687, 56684, 52557, 48554, 44427, 40424, 36297,
-    31782, 27655, 23652, 19525, 15522, 11395, 7392, 3265,
-    61215, 65342, 53085, 57212, 44955, 49082, 36825, 40952,
-    28183, 32310, 20053, 24180, 11923, 16050, 3793, 7920,
-  ];
+  // ── 超时 (ms) ──
+  static const int _tShort = 3000;
+  static const int _tNormal = 10000;
+  static const int _tLong = 60000;
+
+  final List<int> _rxBuf = [];
 
   @override
   String get name => 'Ymodem-1K';
-
   @override
-  String get description => 'Ymodem-1K 协议，支持 CRC-16 校验，适用于嵌入式固件升级';
+  String get receiveName => 'Ymodem-1K 接收';
+  @override
+  String get description => 'Ymodem-1K 协议，CRC-16 校验';
 
-  /// 计算 CRC-16/XMODEM
-  static int _crc16(List<int> data) {
-    int crc = 0;
-    for (final byte in data) {
-      final idx = ((crc >> 8) & 0xFF) ^ byte;
-      crc = ((crc << 8) & 0xFFFF) ^ _crc16Table[idx];
+  // ═══════════════════════════════════════════════════════════════
+  // CRC / 包构建
+  // ═══════════════════════════════════════════════════════════════
+
+  static final _crcParams = CrcPresets.byName('CRC-16/XMODEM').params;
+  static int _crc16(List<int> bytes) =>
+      CrcCalculator.calculate(bytes, _crcParams);
+  static Uint8List _pkt(int type, int seq, int sz, List<int> data) {
+    final pad = List<int>.filled(sz, 0x1A);
+    for (int i = 0; i < data.length && i < sz; i++) {
+      pad[i] = data[i];
     }
-    return crc;
+    final crc = _crc16(pad);
+    final p = Uint8List(3 + sz + 2);
+    p[0] = type;
+    p[1] = seq & 0xFF;
+    p[2] = (0xFF - seq) & 0xFF;
+    p.setRange(3, 3 + sz, pad);
+    p[3 + sz] = (crc >> 8) & 0xFF;
+    p[3 + sz + 1] = crc & 0xFF;
+    return p;
   }
 
-  /// 构建 128 字节数据包 (SOH)
-  static Uint8List _buildSohPacket(int seq, List<int> data) {
-    final padded = List<int>.filled(_sohSize, 0x1A);
-    for (int i = 0; i < data.length && i < _sohSize; i++) {
-      padded[i] = data[i];
-    }
-    final crc = _crc16(padded);
-    final pkt = Uint8List(3 + _sohSize + 2);
-    pkt[0] = _soh;
-    pkt[1] = seq;
-    pkt[2] = 0xFF - seq;
-    pkt.setRange(3, 3 + _sohSize, padded);
-    pkt[3 + _sohSize] = (crc >> 8) & 0xFF;
-    pkt[3 + _sohSize + 1] = crc & 0xFF;
-    return pkt;
-  }
+  // ═══════════════════════════════════════════════════════════════
+  // I/O 辅助
+  // ═══════════════════════════════════════════════════════════════
 
-  /// 构建 1024 字节数据包 (STX)
-  static Uint8List _buildStxPacket(int seq, List<int> data) {
-    final padded = List<int>.filled(_stxSize, 0x1A);
-    for (int i = 0; i < data.length && i < _stxSize; i++) {
-      padded[i] = data[i];
-    }
-    final crc = _crc16(padded);
-    final pkt = Uint8List(3 + _stxSize + 2);
-    pkt[0] = _stx;
-    pkt[1] = seq;
-    pkt[2] = 0xFF - seq;
-    pkt.setRange(3, 3 + _stxSize, padded);
-    pkt[3 + _stxSize] = (crc >> 8) & 0xFF;
-    pkt[3 + _stxSize + 1] = crc & 0xFF;
-    return pkt;
-  }
-
-  /// 等待接收一个字节
-  Future<int?> _waitByte(TransferCallbacks callbacks, int timeoutMs) async {
-    // 在等待期间也检查取消状态
-    final deadline = DateTime.now().add(Duration(milliseconds: timeoutMs));
-    while (DateTime.now().isBefore(deadline)) {
-      if (callbacks.isCancelled()) return null;
-      final byte = await callbacks.onWaitByte(100); // 每次只等100ms，以便检查取消
-      if (byte != null) return byte;
+  Future<int?> _rd(TransferCallbacks cb, int ms) async {
+    final dl = DateTime.now().add(Duration(milliseconds: ms));
+    while (DateTime.now().isBefore(dl)) {
+      if (cb.isCancelled()) return null;
+      final b = await cb.onWaitByte(100);
+      if (b != null) return b;
     }
     return null;
   }
 
-  /// 等待 ACK
-  Future<bool> _waitAck(TransferCallbacks callbacks, int timeoutMs, {int retries = 0}) async {
-    for (int attempt = 0; attempt <= retries; attempt++) {
-      final byte = await _waitByte(callbacks, timeoutMs);
-      if (byte == null) {
-        callbacks.onLog('等待应答超时');
-      } else if (byte == _ack) {
-        return true;
-      } else {
-        callbacks.onLog('收到应答: 0x${byte.toRadixString(16).padLeft(2, '0').toUpperCase()} (期望 ACK 0x06)');
-      }
-      if (attempt < retries) {
-        callbacks.onLog('应答重试 ${attempt + 1}/${retries + 1}');
+  bool _wr(int b, TransferCallbacks cb) =>
+      cb.onWrite(Uint8List.fromList([b]), 500);
+
+  /// 发送数据包，失败时自动报告错误
+  bool _wrPacket(Uint8List pkt, TransferCallbacks cb, int timeoutMs) {
+    if (!cb.onWrite(pkt, timeoutMs)) {
+      cb.onError('写入失败');
+      return false;
+    }
+    return true;
+  }
+
+  /// 等待列表中任一字节，不在列表中的记录日志
+  Future<int?> _wait(
+    List<int> want,
+    List<int> ign,
+    TransferCallbacks cb,
+    int ms,
+  ) async {
+    final dl = DateTime.now().add(Duration(milliseconds: ms));
+    while (DateTime.now().isBefore(dl)) {
+      if (cb.isCancelled()) return null;
+      final b = await cb.onWaitByte(100);
+      if (b == null) continue;
+      if (want.contains(b)) return b;
+      if (!ign.contains(b)) {
+        cb.onLog('收: 0x${b.toRadixString(16).padLeft(2, '0')}');
       }
     }
-    return false;
+    return null;
   }
+
+  Future<Uint8List?> _readN(TransferCallbacks cb, int n, int ms) async {
+    if (_rxBuf.length >= n) {
+      final r = Uint8List.fromList(_rxBuf.sublist(0, n));
+      _rxBuf.removeRange(0, n);
+      return r;
+    }
+    final bytes = <int>[..._rxBuf];
+    _rxBuf.clear();
+    final dl = DateTime.now().add(Duration(milliseconds: ms));
+    while (bytes.length < n && DateTime.now().isBefore(dl)) {
+      if (cb.isCancelled()) {
+        if (bytes.isNotEmpty) _rxBuf.addAll(bytes);
+        return null;
+      }
+      final d = await cb.onWaitData(50);
+      if (d != null) bytes.addAll(d);
+    }
+    if (bytes.length < n) {
+      _rxBuf.addAll(bytes);
+      return null;
+    }
+    if (bytes.length > n) _rxBuf.addAll(bytes.sublist(n));
+    return Uint8List.fromList(bytes.sublist(0, n));
+  }
+
+  (int, int, List<int>)? _parse(Uint8List raw) {
+    if (raw.length < 3) return null;
+    final t = raw[0];
+    if (t == _eot) return (_eot, 0, []);
+    if (t != _soh && t != _stx) return null;
+    final seq = raw[1], inv = raw[2];
+    if ((seq + inv) & 0xFF != 0xFF) return null;
+    final sz = t == _stx ? _stxSize : _sohSize;
+    if (raw.length < 3 + sz + 2) return null;
+    final data = raw.sublist(3, 3 + sz);
+    final expectCrc = (raw[3 + sz] << 8) | raw[3 + sz + 1];
+    return _crc16(data) == expectCrc ? (t, seq, data) : null;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 发送（标准 YModem：等 'C' → 发块 → 等 ACK → 等 'C' → ...）
+  // ═══════════════════════════════════════════════════════════════
 
   @override
   Future<void> send(
-    SerialPort port,
     Uint8List data, {
     required int packetSize,
     required int intervalMs,
     required TransferCallbacks callbacks,
   }) async {
+    final cb = callbacks;
     final fileSize = data.length;
+    _rxBuf.clear();
+    cb.onLog(
+      'Ymodem-1K 发送: ${cb.fileName.isNotEmpty ? cb.fileName : "FW.BIN"} ($fileSize B)',
+    );
 
-    callbacks.onLog('Ymodem-1K 传输开始');
-    callbacks.onLog('固件大小: $fileSize 字节');
+    // Block 0
+    final nb = <int>[
+      ...utf8.encode(cb.fileName.isNotEmpty ? cb.fileName : 'FW.BIN'),
+      0,
+      ...utf8.encode('$fileSize'),
+    ];
+    if (nb.length > _sohSize) nb.length = _sohSize;
+    final b0 = _pkt(_soh, 0, _sohSize, nb);
 
-    // 检查取消
-    if (callbacks.isCancelled()) {
-      callbacks.onLog('传输已取消');
-      return;
-    }
+    int off = 0, seq = 0, pend = 0, nak = 0;
+    List<int> chunk = [];
+    bool awaitC = true, hsDone = false;
 
-    // 阶段 0: 等待接收端发送 'C' 进入 CRC 模式
-    callbacks.onLog('等待接收端发送 CRC 请求 (0x43)...');
-    bool gotCrc = false;
-    for (int attempt = 0; attempt < 10; attempt++) {
-      if (callbacks.isCancelled()) {
-        callbacks.onLog('传输已取消');
-        return;
-      }
-      final b = await _waitByte(callbacks, 1000);
-      if (b != null) {
-        callbacks.onLog('收到: 0x${b.toRadixString(16).padLeft(2, '0').toUpperCase()}');
-      }
-      if (b == _crc) {
-        gotCrc = true;
-        callbacks.onLog('收到 CRC 模式请求');
-        break;
-      }
-    }
-    if (!gotCrc) {
-      callbacks.onError('接收端就绪（未收到 0x43 CRC 请求）');
-      return;
-    }
+    while (true) {
+      if (cb.isCancelled()) return;
 
-    // 检查取消
-    if (callbacks.isCancelled()) {
-      callbacks.onLog('传输已取消');
-      return;
-    }
-
-    // 阶段 1: 发送文件名包 (SOH, seq=0)
-    final nameBytes = <int>[];
-    final nameStr = 'FW.BIN';
-    for (int i = 0; i < nameStr.length; i++) {
-      nameBytes.add(nameStr.codeUnitAt(i));
-    }
-    nameBytes.add(0); // 分隔符
-    final sizeStr = fileSize.toString();
-    for (int i = 0; i < sizeStr.length; i++) {
-      nameBytes.add(sizeStr.codeUnitAt(i));
-    }
-
-    final filenamePkt = _buildSohPacket(0, nameBytes);
-    callbacks.onLog('发送文件名包 (${filenamePkt.length} 字节)...');
-    final writeOk = port.writeBytesFromUint8List(filenamePkt);
-    if (!writeOk) {
-      callbacks.onError('文件名包发送失败（串口写入超时）');
-      return;
-    }
-
-    if (!await _waitAck(callbacks, 3000)) {
-      if (callbacks.isCancelled()) {
-        callbacks.onLog('传输已取消');
-        return;
-      }
-      callbacks.onError('文件名包未被确认');
-      return;
-    }
-
-    // 等待第二个 'C'
-    final c2 = await _waitByte(callbacks, 3000);
-    if (c2 != _crc) {
-      callbacks.onLog('警告: 未收到第二个 CRC 请求，继续传输');
-    }
-
-    // 阶段 2: 分包发送数据 (STX, 1024B)
-    final totalPackets = (fileSize / _stxSize).ceil();
-    callbacks.onLog('共 $totalPackets 个数据包');
-
-    int offset = 0;
-    int packetSeq = 0;
-
-    while (offset < fileSize) {
-      // 检查取消
-      if (callbacks.isCancelled()) {
-        callbacks.onLog('传输已取消');
-        return;
-      }
-
-      int end = offset + _stxSize;
-      if (end > fileSize) end = fileSize;
-      final chunk = data.sublist(offset, end).toList();
-
-      packetSeq++;
-      final dataPkt = _buildStxPacket(packetSeq & 0xFF, chunk);
-      callbacks.onLog('发送包 #$packetSeq (${chunk.length}B, ${dataPkt.length}B)');
-      final dataWriteOk = port.writeBytesFromUint8List(dataPkt);
-      if (!dataWriteOk) {
-        callbacks.onError('包 #$packetSeq 发送失败（串口写入超时）');
-        return;
-      }
-
-      if (!await _waitAck(callbacks, 3000)) {
-        if (callbacks.isCancelled()) {
-          callbacks.onLog('传输已取消');
+      if (awaitC) {
+        final c = await _wait([_crc], [_nak], cb, _tLong);
+        if (c == null) {
+          if (cb.isCancelled()) {
+            cb.onLog('传输已取消');
+            return;
+          }
+          cb.onError('未收到 CRC 请求');
           return;
         }
-        callbacks.onError('包 #$packetSeq 未被确认，传输中止');
-        return;
+
+        if (!hsDone) {
+          cb.onLog('发文件名包...');
+          if (!_wrPacket(b0, cb, _tNormal)) return;
+          awaitC = false;
+          continue;
+        }
+        if (off >= fileSize) {
+          // EOT 交换：发 EOT → 等 NAK → 重发 EOT → 等 ACK → 发结束块
+          cb.onLog('发 EOT...');
+          var eotAcked = false;
+          for (int e = 0; e < 2; e++) {
+            if (!_wrPacket(Uint8List.fromList([_eot]), cb, 500)) return;
+            final r = await _rd(cb, _tShort);
+            if (r == _ack) {
+              eotAcked = true;
+              break;
+            }
+            if (r == null && cb.isCancelled()) {
+              cb.onLog('传输已取消');
+              return;
+            }
+          }
+          if (!eotAcked) {
+            cb.onError('EOT 握手未完成');
+            return;
+          }
+          cb.onLog('发结束块...');
+          if (!_wrPacket(
+            _pkt(_soh, 0, _sohSize, List.filled(_sohSize, 0)),
+            cb,
+            _tNormal,
+          )) {
+            return;
+          }
+          awaitC = false;
+          off = fileSize + 1;
+          continue;
+        }
+
+        int end = off + _stxSize;
+        if (end > fileSize) end = fileSize;
+        chunk = data.sublist(off, end).toList();
+        pend = end;
+        seq = (seq + 1) & 0xFF;
+        cb.onLog('发块 #$seq (${chunk.length}B)');
+        if (!_wrPacket(_pkt(_stx, seq, _stxSize, chunk), cb, _tNormal)) return;
+        awaitC = false;
+        nak = 0;
+      } else {
+        final r = await _wait([_ack, _nak, _can], [_crc], cb, _tNormal);
+        if (r == null) {
+          if (cb.isCancelled()) {
+            cb.onLog('传输已取消');
+            return;
+          }
+          cb.onError('传输超时');
+          return;
+        }
+        if (r == _can) {
+          cb.onError('传输中止');
+          return;
+        }
+        if (r == _ack) {
+          if (off > fileSize) {
+            cb.onLog('结束块已确认');
+            break;
+          }
+          if (!hsDone) {
+            hsDone = true;
+            cb.onLog('文件名包已确认');
+          } else {
+            off = pend;
+            if (off > fileSize) off = fileSize;
+            cb.onProgress(off / fileSize);
+          }
+          awaitC = true;
+        } else {
+          if (nak++ >= 3) {
+            cb.onError('NAK 过多');
+            return;
+          }
+          cb.onLog('NAK 重发 ($nak/3)');
+          if (!hsDone) {
+            if (!_wrPacket(b0, cb, _tNormal)) return;
+          } else if (off > fileSize) {
+            if (!_wrPacket(
+              _pkt(_soh, 0, _sohSize, List.filled(_sohSize, 0)),
+              cb,
+              _tNormal,
+            )) {
+              return;
+            }
+          } else {
+            if (!_wrPacket(_pkt(_stx, seq, _stxSize, chunk), cb, _tNormal)) {
+              return;
+            }
+          }
+        }
       }
+    }
+    cb.onLog('发送完成');
+    cb.onComplete(fileSize);
+  }
 
-      offset = end;
-      callbacks.onProgress(offset / fileSize);
+  // ═══════════════════════════════════════════════════════════════
+  // 接收
+  // ═══════════════════════════════════════════════════════════════
+
+  @override
+  Future<void> receive({
+    required String savePath,
+    required TransferCallbacks callbacks,
+  }) async {
+    final cb = callbacks;
+    final sink = File(savePath).openWrite(mode: FileMode.write);
+    _rxBuf.clear();
+    var closed = false;
+    void writeControl(int byte) {
+      if (!_wr(byte, cb)) throw StateError('串口写入失败');
     }
 
-    // 检查取消
-    if (callbacks.isCancelled()) {
-      callbacks.onLog('传输已取消');
-      return;
-    }
-
-    // 阶段 3: 发送 EOT
-    callbacks.onLog('发送 EOT...');
-    final eotOk = port.writeBytesFromUint8List(Uint8List.fromList([_eot]));
-    if (!eotOk) {
-      callbacks.onError('EOT 发送失败');
-      return;
-    }
-    await _waitAck(callbacks, 3000);
-
-    // 阶段 4: 发送结束包 (SOH, seq=0, 全零)
-    final endWait = await _waitByte(callbacks, 3000);
-    if (endWait == _crc) {
-      callbacks.onLog('发送结束包...');
-      final endPkt = _buildSohPacket(0, List.filled(_sohSize, 0));
-      final endOk = port.writeBytesFromUint8List(endPkt);
-      if (!endOk) {
-        callbacks.onError('结束包发送失败');
-        return;
+    try {
+      cb.onLog('Ymodem-1K 接收开始');
+      (int, int, List<int>)? header;
+      for (var attempt = 0; attempt < 10 && !cb.isCancelled(); attempt++) {
+        writeControl(_crc);
+        final first = await _readN(cb, 1, _tShort);
+        if (first == null) continue;
+        if (first[0] == _can) throw StateError('发送端中止传输');
+        if (first[0] != _soh) {
+          writeControl(_nak);
+          continue;
+        }
+        final rest = await _readN(cb, 2 + _sohSize + 2, _tShort);
+        if (rest == null) continue;
+        final parsed = _parse(Uint8List.fromList([_soh, ...rest]));
+        if (parsed != null && parsed.$2 == 0 && parsed.$3.first != 0) {
+          header = parsed;
+          break;
+        }
+        writeControl(_nak);
       }
-      await _waitAck(callbacks, 3000);
+      if (cb.isCancelled()) return;
+      if (header == null) throw StateError('未收到有效文件名包');
+      final info = header.$3;
+      final separator = info.indexOf(0);
+      if (separator <= 0) throw StateError('文件名包格式错误');
+      final name = utf8.decode(
+        info.sublist(0, separator),
+        allowMalformed: true,
+      );
+      final sizeText = utf8.decode(
+        info
+            .sublist(separator + 1)
+            .takeWhile((byte) => byte != 0 && byte != 0x1A)
+            .toList(),
+        allowMalformed: true,
+      );
+      final expectedSize = int.tryParse(sizeText.split(' ').first);
+      if (expectedSize != null && expectedSize < 0) throw StateError('文件大小无效');
+      cb.onFileInfo?.call(name, expectedSize ?? 0);
+      writeControl(_ack);
+      writeControl(_crc);
+      var sequence = 0;
+      var failures = 0;
+      var eotDone = false;
+      final data = <int>[];
+      while (!cb.isCancelled() && failures < 10) {
+        final first = await _readN(cb, 1, _tNormal);
+        if (first == null) {
+          failures++;
+          writeControl(_nak);
+          continue;
+        }
+        final type = first[0];
+        if (type == _can) throw StateError('发送端中止传输');
+        if (type == _eot) {
+          writeControl(_nak);
+          final second = await _readN(cb, 1, _tShort);
+          if (second == null || second[0] != _eot) {
+            throw StateError('EOT 握手未完成');
+          }
+          writeControl(_ack);
+          eotDone = true;
+          break;
+        }
+        if (type != _soh && type != _stx) {
+          failures++;
+          writeControl(_nak);
+          continue;
+        }
+        final size = type == _stx ? _stxSize : _sohSize;
+        final rest = await _readN(cb, 2 + size + 2, _tNormal);
+        final packet = rest == null
+            ? null
+            : _parse(Uint8List.fromList([type, ...rest]));
+        if (packet == null) {
+          failures++;
+          writeControl(_nak);
+          continue;
+        }
+        if (packet.$2 == (sequence & 0xFF)) {
+          writeControl(_ack);
+          // 文件名包的重发也要继续请求数据块。
+          if (sequence == 0) writeControl(_crc);
+          continue;
+        }
+        if (packet.$2 != ((sequence + 1) & 0xFF)) {
+          failures++;
+          writeControl(_nak);
+          continue;
+        }
+        data.addAll(packet.$3);
+        sequence = (sequence + 1) & 0xFF;
+        failures = 0;
+        writeControl(_ack);
+        writeControl(_crc);
+        if (expectedSize != null && expectedSize > 0) {
+          cb.onProgress((data.length / expectedSize).clamp(0, 1));
+        }
+      }
+      if (cb.isCancelled()) return;
+      if (!eotDone) throw StateError('接收超时，传输未完成');
+      writeControl(_crc);
+      final ending = await _readN(cb, 3 + _sohSize + 2, _tShort);
+      final parsedEnding = ending == null ? null : _parse(ending);
+      if (parsedEnding == null ||
+          parsedEnding.$1 != _soh ||
+          parsedEnding.$2 != 0 ||
+          parsedEnding.$3.first != 0) {
+        throw StateError('未收到有效结束块');
+      }
+      writeControl(_ack);
+      if (expectedSize != null && data.length < expectedSize) {
+        throw StateError('接收文件被截断: ${data.length}/$expectedSize');
+      }
+      var length = expectedSize ?? data.length;
+      if (expectedSize == null) {
+        while (length > 0 && data[length - 1] == 0x1A) {
+          length--;
+        }
+      }
+      sink.add(Uint8List.fromList(data.sublist(0, length)));
+      await sink.flush();
+      await sink.close();
+      closed = true;
+      if (!cb.isCancelled()) {
+        cb.onLog('接收完成 $length B');
+        cb.onComplete(length);
+      }
+    } catch (error) {
+      if (!cb.isCancelled()) cb.onError('接收失败: $error');
+    } finally {
+      _rxBuf.clear();
+      if (!closed) await sink.close();
     }
-
-    callbacks.onLog('Ymodem-1K 传输完成!');
-    callbacks.onComplete(fileSize);
   }
 }

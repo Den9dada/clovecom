@@ -1,4 +1,4 @@
-#include "flutter_window.h"
+﻿#include "flutter_window.h"
 
 #include <optional>
 
@@ -25,10 +25,12 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  serial_ports_ = std::make_unique<SerialPorts>(
+      GetHandle(), flutter_controller_->engine()->messenger());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    // 窗口由 window_manager 完成无边框配置后显示，避免原生标题栏闪现。
   });
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -40,6 +42,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  serial_ports_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -51,6 +54,7 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (serial_ports_) serial_ports_->HandleMessage(message, wparam, lparam);
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'tools/bin_editor_tool.dart';
 import 'tools/bin_link_tool.dart';
 import 'tools/crc_tool.dart';
@@ -22,7 +21,7 @@ class ToolboxToolRegistry {
 
   static final tools = <ToolboxToolDefinition>[
     ToolboxToolDefinition(
-      title: 'HEX转BIN',
+      title: 'HEX/BIN互转',
       icon: Icons.transform_outlined,
       builder: (_) => const HexToBinTool(),
     ),

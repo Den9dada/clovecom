@@ -1,24 +1,18 @@
-// 主页面视图文件
-//
-// 该文件实现了应用的主页面，采用TabBar进行模块切换。
-// 包含四个Tab页：串口通信、USB通信、网络通信、工具箱。
-//
-// 主要功能：
-// - 使用TabBar实现模块切换
-// - 使用IndexedStack保持所有模块同时运行（切换Tab不会销毁之前的模块）
-// - 支持滑动切换和点击切换
-
+import 'dart:io';
 import 'package:flutter/material.dart';
-import '../terminal/terminal_view.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../services/protocol_library.dart';
+import '../../ui/controllers/app_controller.dart';
+import '../../ui/pages/protocol_editor_page.dart';
+import '../../widgets/desktop_title_bar.dart';
+import '../../services/status_bar_service.dart';
 import '../serial_port/serial_port_view.dart';
+import '../firmware_upgrade/firmware_upgrade_view.dart';
 import '../usb/usb_view.dart';
 import '../network/network_view.dart';
 import '../toolbox/toolbox_view.dart';
+import '../i2c_tool/i2c_tool_view.dart';
 
-/// 主页面视图组件
-///
-/// 作为应用的主入口页面，提供TabBar导航。
-/// 使用SingleTickerProviderStateMixin支持TabController的动画。
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
 
@@ -26,166 +20,300 @@ class HomeView extends StatefulWidget {
   State<HomeView> createState() => _HomeViewState();
 }
 
-/// 主页面视图状态类
-///
-/// 管理TabController的生命周期，处理Tab切换逻辑。
-class _HomeViewState extends State<HomeView>
-    with SingleTickerProviderStateMixin {
-  /// Tab控制器，管理Tab页的切换和动画
-  late TabController _tabController;
-
-  /// 当前选中的Tab索引
+class _HomeViewState extends State<HomeView> {
   int _currentIndex = 0;
-
+  bool _navigationExpanded = true;
+  final _protocolLibrary = ProtocolLibrary();
+  late final _protocolController = AppController(_protocolLibrary);
+  bool _protocolReady = false;
+  String? _protocolError;
   @override
   void initState() {
     super.initState();
-    // 初始化Tab控制器，设置Tab数量为4
-    // vsync参数用于动画同步，避免屏幕外动画消耗资源
-    _tabController = TabController(length: 5, vsync: this);
-    // 监听Tab切换
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        setState(() {
-          _currentIndex = _tabController.index;
-        });
-      }
-    });
+    _loadProtocols();
+  }
+
+  Future<void> _loadProtocols() async {
+    try {
+      final dir = await getApplicationSupportDirectory();
+      if (!mounted) return;
+      await _protocolLibrary.initialize(
+        file: File('${dir.path}/protocols/library.json'),
+      );
+      if (mounted) setState(() => _protocolReady = true);
+    } catch (error) {
+      if (mounted) setState(() => _protocolError = '协议库载入失败：$error');
+    }
   }
 
   @override
   void dispose() {
-    // 释放Tab控制器资源
-    _tabController.dispose();
+    _protocolController.dispose();
+    _protocolLibrary.dispose();
+    super.dispose();
+  }
+
+  static const _labels = [
+    '串口通信',
+    'USB通信',
+    '网络通信',
+    '工具箱',
+    'CH34x调试',
+    '固件升级',
+    '协议编辑',
+  ];
+  static const _icons = [
+    Icons.settings_input_component_outlined,
+    Icons.usb_outlined,
+    Icons.lan_outlined,
+    Icons.handyman_outlined,
+    Icons.memory_outlined,
+    Icons.system_update_outlined,
+    Icons.schema_outlined,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final expanded =
+              _navigationExpanded &&
+              constraints.maxWidth >= 1280 &&
+              constraints.maxHeight >= 720;
+          return Column(
+            children: [
+              DesktopTitleBar(
+                navigationExpanded: expanded,
+                onMenu: () =>
+                    setState(() => _navigationExpanded = !_navigationExpanded),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: expanded ? 200 : 56,
+                      decoration: BoxDecoration(
+                        color: colors.surfaceContainerLow,
+                        border: Border(
+                          right: BorderSide(color: colors.outlineVariant),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 16),
+                          if (expanded)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+                              child: Text(
+                                '设备通信',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          for (
+                            var index = 0;
+                            index < _labels.length;
+                            index++
+                          ) ...[
+                            if (index == 3) ...[
+                              const SizedBox(height: 16),
+                              if (expanded)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    0,
+                                    12,
+                                    8,
+                                  ),
+                                  child: Text(
+                                    '开发工具',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: colors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              child: Tooltip(
+                                message: expanded ? '' : _labels[index],
+                                child: Material(
+                                  color: index == _currentIndex
+                                      ? colors.primary.withValues(alpha: 0.09)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: () =>
+                                        setState(() => _currentIndex = index),
+                                    child: SizedBox(
+                                      height: 36,
+                                      child: Row(
+                                        mainAxisAlignment: expanded
+                                            ? MainAxisAlignment.start
+                                            : MainAxisAlignment.center,
+                                        children: [
+                                          if (expanded)
+                                            const SizedBox(width: 12),
+                                          Icon(
+                                            _icons[index],
+                                            size: 17,
+                                            color: index == _currentIndex
+                                                ? colors.primary
+                                                : colors.onSurfaceVariant,
+                                          ),
+                                          if (expanded) ...[
+                                            const SizedBox(width: 10),
+                                            Text(
+                                              _labels[index],
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight:
+                                                    index == _currentIndex
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w400,
+                                                color: index == _currentIndex
+                                                    ? colors.primary
+                                                    : colors.onSurface,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          if (expanded)
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                'CloveCOM · 开发工作台',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: IndexedStack(
+                              index: _currentIndex,
+                              children: [
+                                SerialPortView(),
+                                UsbView(),
+                                NetworkView(),
+                                ToolboxView(),
+                                I2cToolView(),
+                                FirmwareUpgradeView(
+                                  protocolLibrary: _protocolLibrary,
+                                ),
+                                _protocolReady
+                                    ? ProtocolEditorPage(
+                                        controller: _protocolController,
+                                      )
+                                    : Center(
+                                        child: _protocolError != null
+                                            ? Text(_protocolError!)
+                                            : const CircularProgressIndicator(),
+                                      ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _StatusBarWidget(tabIndex: _currentIndex),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 状态栏 — StatefulWidget 自行管理对 [StatusBarService.version] 的监听，
+/// 确保监听器生命周期不依赖外层重建频率。
+class _StatusBarWidget extends StatefulWidget {
+  const _StatusBarWidget({required this.tabIndex});
+
+  final int tabIndex;
+
+  @override
+  State<_StatusBarWidget> createState() => _StatusBarWidgetState();
+}
+
+class _StatusBarWidgetState extends State<_StatusBarWidget> {
+  void _onVersionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    StatusBarService().version.addListener(_onVersionChanged);
+  }
+
+  @override
+  void dispose() {
+    StatusBarService().version.removeListener(_onVersionChanged);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final info = StatusBarService().statusFor(widget.tabIndex);
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      // 应用栏
-      appBar: AppBar(
-        toolbarHeight: 36,
-        // 应用标题
-        title: Row(
-          children: [
-            _buildMenuText(context, '文件'),
-            _buildMenuText(context, '关于'),
-          ],
-        ),
-        backgroundColor: colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        shape: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
-        // Tab栏，显示在应用栏底部
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          labelColor: colorScheme.primary,
-          unselectedLabelColor: colorScheme.onSurfaceVariant,
-          indicatorColor: colorScheme.primary,
-          indicatorWeight: 3,
-          dividerColor: colorScheme.outlineVariant,
-          labelStyle: Theme.of(context).textTheme.labelLarge,
-          unselectedLabelStyle: Theme.of(context).textTheme.labelLarge,
-          // Tab项列表
-          tabs: const [
-            Tab(
-              height: 38,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.terminal, size: 16),
-                  SizedBox(width: 6),
-                  Text('终端'),
-                ],
-              ),
-            ),
-            // 串口通信Tab
-            Tab(
-              height: 38,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.device_hub, size: 16),
-                  SizedBox(width: 6),
-                  Text('串口通信'),
-                ],
-              ),
-            ),
-            // USB通信Tab（预留）
-            Tab(
-              height: 38,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.usb, size: 16),
-                  SizedBox(width: 6),
-                  Text('USB通信'),
-                ],
-              ),
-            ),
-            // 网络通信Tab（预留）
-            Tab(
-              height: 38,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.wifi, size: 16),
-                  SizedBox(width: 6),
-                  Text('网络通信'),
-                ],
-              ),
-            ),
-            // 工具箱Tab
-            Tab(
-              height: 38,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.build_outlined, size: 16),
-                  SizedBox(width: 6),
-                  Text('工具箱'),
-                ],
-              ),
-            ),
-          ],
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        border: Border(
+          top: BorderSide(color: colorScheme.outlineVariant, width: 1),
         ),
       ),
-      // 使用 IndexedStack 保持所有模块同时运行
-      // 切换Tab时不会销毁之前的模块，确保串口通信在后台继续工作
-      body: IndexedStack(
-        index: _currentIndex,
-        children: const [
-          TerminalView(),
-          // 串口通信页面
-          SerialPortView(),
-          // USB通信页面（预留）
-          UsbView(),
-          // 网络通信页面（预留）
-          NetworkView(),
-          // 工具箱页面
-          ToolboxView(),
+      child: Row(
+        children: [
+          if (info.icon != null) ...[
+            Icon(
+              info.icon,
+              size: 14,
+              color: info.color ?? colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 6),
+          ],
+          Expanded(
+            child: Text(
+              info.text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: info.color ?? colorScheme.onSurfaceVariant,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMenuText(BuildContext context, String label) {
-    return SizedBox(
-      height: 28,
-      child: TextButton(
-        onPressed: () {},
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          foregroundColor: Theme.of(context).colorScheme.onSurface,
-        ),
-        child: Text(label),
       ),
     );
   }

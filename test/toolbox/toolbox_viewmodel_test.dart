@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:clovecom/models/toolbox/crc_params.dart';
 import 'package:clovecom/viewmodels/toolbox/bin_editor_viewmodel.dart';
 import 'package:clovecom/viewmodels/toolbox/bin_link_viewmodel.dart';
@@ -49,51 +51,60 @@ void main() {
     },
   );
 
-  test('bin editor applies insert and undo', () {
-    final viewModel = BinEditorViewModel();
+  test('bin editor applies insert and undo', () async {
+    final tempDir = Directory.systemTemp;
+    final tempFile = File('${tempDir.path}/test_insert.bin');
+    await tempFile.writeAsBytes([0x01, 0x04]);
 
-    viewModel.loadBinBytes(
-      name: 'app.bin',
-      path: r'C:\temp\app.bin',
-      bytes: [0x01, 0x04],
-    );
-    viewModel.applyInsert('1', '02 03');
+    try {
+      final viewModel = BinEditorViewModel();
+      await viewModel.importPaths([tempFile.path]);
 
-    expect(viewModel.bytes, [0x01, 0x02, 0x03, 0x04]);
-    expect(viewModel.hasUnsavedChanges, isTrue);
+      viewModel.applyInsert('1', '02 03');
 
-    viewModel.undoLast();
+      expect(viewModel.bytes, [0x01, 0x02, 0x03, 0x04]);
+      expect(viewModel.hasUnsavedChanges, isTrue);
 
-    expect(viewModel.bytes, [0x01, 0x04]);
-    expect(viewModel.hasUnsavedChanges, isFalse);
+      viewModel.undoLast();
+
+      expect(viewModel.bytes, [0x01, 0x04]);
+      expect(viewModel.hasUnsavedChanges, isFalse);
+    } finally {
+      if (await tempFile.exists()) await tempFile.delete();
+    }
   });
 
-  test('bin editor replaces a single preview byte and supports undo', () {
-    final viewModel = BinEditorViewModel();
+  test('bin editor replaces a single preview byte and supports undo', () async {
+    final tempDir = Directory.systemTemp;
+    final tempFile = File('${tempDir.path}/test_replace.bin');
+    await tempFile.writeAsBytes([0x01, 0x02, 0x03]);
 
-    viewModel.loadBinBytes(
-      name: 'app.bin',
-      path: r'C:\temp\app.bin',
-      bytes: [0x01, 0x02, 0x03],
-    );
-    viewModel.replaceByte(1, 'AA');
+    try {
+      final viewModel = BinEditorViewModel();
+      await viewModel.importPaths([tempFile.path]);
 
-    expect(viewModel.bytes, [0x01, 0xAA, 0x03]);
-    expect(viewModel.hasUnsavedChanges, isTrue);
+      viewModel.replaceByte(1, 'AA');
 
-    viewModel.undoLast();
+      expect(viewModel.bytes, [0x01, 0xAA, 0x03]);
+      expect(viewModel.hasUnsavedChanges, isTrue);
 
-    expect(viewModel.bytes, [0x01, 0x02, 0x03]);
+      viewModel.undoLast();
+
+      expect(viewModel.bytes, [0x01, 0x02, 0x03]);
+    } finally {
+      if (await tempFile.exists()) await tempFile.delete();
+    }
   });
 
   test('bin link view model previews manual hex segments with fill byte', () {
     final viewModel = BinLinkViewModel();
 
-    viewModel.addManualHex(addressText: '0x1000', hexText: '01 02');
-    viewModel.addManualHex(addressText: '0x1004', hexText: 'AA');
+    viewModel.addManualHex(addressText: '0x1', hexText: '01 02');
+    viewModel.addManualHex(addressText: '0x5', hexText: 'AA');
 
-    expect(viewModel.previewBaseAddress, 0x1000);
-    expect(viewModel.previewBytes, [0x01, 0x02, 0xFF, 0xFF, 0xAA]);
+    expect(viewModel.previewBaseAddress, 0);
+    // 从0开始: [0xFF, 0x01, 0x02, 0xFF, 0xFF, 0xAA]
+    expect(viewModel.previewBytes, [0xFF, 0x01, 0x02, 0xFF, 0xFF, 0xAA]);
     expect(viewModel.lastError, isNull);
   });
 
@@ -102,12 +113,13 @@ void main() {
     () {
       final viewModel = BinLinkViewModel();
 
-      viewModel.addManualHex(addressText: '0x1000', hexText: '01 02 03 04');
-      viewModel.addManualHex(addressText: '0x1001', hexText: 'AA BB');
+      viewModel.addManualHex(addressText: '0x2', hexText: '01 02 03 04');
+      viewModel.addManualHex(addressText: '0x3', hexText: 'AA BB');
 
       expect(viewModel.segments, hasLength(1));
-      expect(viewModel.previewBaseAddress, 0x1000);
-      expect(viewModel.previewBytes, [0x01, 0xAA, 0xBB, 0x04]);
+      expect(viewModel.previewBaseAddress, 0);
+      // 从0开始: [0xFF, 0xFF, 0x01, 0xAA, 0xBB, 0x04]
+      expect(viewModel.previewBytes, [0xFF, 0xFF, 0x01, 0xAA, 0xBB, 0x04]);
       expect(viewModel.lastError, isNull);
     },
   );

@@ -1,7 +1,10 @@
+import 'package:clovecom/widgets/app_dropdown.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../models/toolbox/crc_params.dart';
+import '../../../services/status_bar_service.dart';
 import '../../../viewmodels/toolbox/crc_viewmodel.dart';
 import '../widgets/file_drop_zone.dart';
 import '../widgets/hex_ascii_viewer.dart';
@@ -15,14 +18,42 @@ class CrcTool extends StatefulWidget {
 
 class _CrcToolState extends State<CrcTool> with AutomaticKeepAliveClientMixin {
   late final CrcViewModel _viewModel = CrcViewModel();
+  var _dragging = false;
 
   @override
   bool get wantKeepAlive => true;
 
+  bool get _isCurrentTab {
+    final controller = DefaultTabController.of(context);
+    return controller.index == 3;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _viewModel.addListener(_updateStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateStatus());
+  }
+
   @override
   void dispose() {
+    _viewModel.removeListener(_updateStatus);
     _viewModel.dispose();
     super.dispose();
+  }
+
+  void _updateStatus() {
+    final selected = _viewModel.selectedFiles;
+    final text = selected.isEmpty
+        ? (_viewModel.files.isEmpty ? '就绪 — 拖入或打开文件' : '未选中文件')
+        : selected.map((f) => f.path).join(' | ');
+    StatusBarService().updateToolboxStatus(
+      3,
+      StatusBarInfo(
+        text: text,
+        icon: selected.isNotEmpty ? Icons.insert_drive_file : null,
+      ),
+    );
   }
 
   @override
@@ -30,7 +61,65 @@ class _CrcToolState extends State<CrcTool> with AutomaticKeepAliveClientMixin {
     super.build(context);
     return ChangeNotifierProvider.value(
       value: _viewModel,
-      child: const _CrcToolContent(),
+      child: DropTarget(
+        onDragEntered: (_) {
+          if (_isCurrentTab) setState(() => _dragging = true);
+        },
+        onDragExited: (_) {
+          if (_isCurrentTab) setState(() => _dragging = false);
+        },
+        onDragDone: (details) async {
+          if (!_isCurrentTab) return;
+          final paths = details.files.map((f) => f.path).toList();
+          if (paths.isNotEmpty) {
+            await _viewModel.importFiles(paths);
+          }
+          if (mounted) setState(() => _dragging = false);
+        },
+        child: Stack(
+          children: [
+            const _CrcToolContent(),
+            if (_dragging) _buildDragOverlay(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDragOverlay(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Positioned.fill(
+      child: Container(
+        color: cs.primaryContainer.withValues(alpha: 0.15),
+        alignment: Alignment.center,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: cs.shadow.withValues(alpha: 0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_upload_outlined, size: 48),
+              SizedBox(height: 12),
+              Text(
+                '松开以导入文件',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 4),
+              Text('支持任意文件格式', style: TextStyle(fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -51,13 +140,13 @@ class _CrcToolContent extends StatelessWidget {
         if (viewModel.showAboutPopup) {
           rightPane = _buildAboutPanel(context, viewModel);
         } else if (viewModel.inputMode == DataInputMode.file &&
-            viewModel.fileBytes != null) {
+            viewModel.selectedFiles.isNotEmpty) {
           rightPane = Column(
             children: [
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
-                  '文件预览: ${viewModel.fileName}',
+                  '文件预览: ${viewModel.selectedFiles.length} / ${viewModel.files.length} 个文件 · ${CrcViewModel.formatFileSize(viewModel.selectedFileSize)}',
                   style: Theme.of(context).textTheme.labelMedium,
                 ),
               ),
@@ -65,14 +154,11 @@ class _CrcToolContent extends StatelessWidget {
                 flex: 6,
                 child: Card(
                   clipBehavior: Clip.antiAlias,
-                  child: HexAsciiViewer(bytes: viewModel.fileBytes!),
+                  child: HexAsciiViewer(bytes: viewModel.currentBytes!),
                 ),
               ),
               const SizedBox(height: 8),
-              Expanded(
-                flex: 4,
-                child: _buildResultCard(context, viewModel),
-              ),
+              Expanded(flex: 4, child: _buildResultCard(context, viewModel)),
             ],
           );
         } else {
@@ -162,7 +248,11 @@ class _CrcToolContent extends StatelessWidget {
             border: OutlineInputBorder(),
             contentPadding: EdgeInsets.all(10),
           ),
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          style: const TextStyle(
+            fontFamily: 'Consolas',
+            fontFamilyFallback: ['Menlo', 'Courier New', 'MiSans'],
+            fontSize: 13,
+          ),
           onChanged: viewModel.setHexText,
         );
       case DataInputMode.ascii:
@@ -177,34 +267,28 @@ class _CrcToolContent extends StatelessWidget {
         );
       case DataInputMode.file:
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             FileDropZone(
               title: '导入文件',
-              subtitle: '拖入或点击选择任意文件，计算 CRC',
+              subtitle: '拖入或点击选择文件，计算 CRC（支持多选）',
               allowedExtensions: const [],
-              allowMultiple: false,
+              allowMultiple: true,
               onFilesSelected: (paths) async {
-                await context.read<CrcViewModel>().importFile(paths);
+                await context.read<CrcViewModel>().importFiles(paths);
               },
             ),
-            if (viewModel.fileName != null) ...[
+            if (viewModel.hasFiles) ...[
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    const Icon(Icons.insert_drive_file_outlined, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${viewModel.fileName} · ${CrcViewModel.formatFileSize(viewModel.fileSize)}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                    for (var i = 0; i < viewModel.files.length; i++)
+                      _buildFileRow(context, viewModel, i),
                   ],
                 ),
               ),
@@ -229,7 +313,7 @@ class _CrcToolContent extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<String>(
+                  child: AppDropdownFormField<String>(
                     key: ValueKey(viewModel.selectedPreset),
                     initialValue: viewModel.selectedPreset ?? '自定义',
                     decoration: const InputDecoration(
@@ -248,9 +332,7 @@ class _CrcToolContent extends StatelessWidget {
                       );
                     }).toList(),
                     onChanged: (value) {
-                      viewModel.selectPreset(
-                        value == '自定义' ? null : value,
-                      );
+                      viewModel.selectPreset(value == '自定义' ? null : value);
                     },
                   ),
                 ),
@@ -281,7 +363,8 @@ class _CrcToolContent extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
     final valueStyle = TextStyle(
-      fontFamily: 'monospace',
+      fontFamily: 'Consolas',
+      fontFamilyFallback: const ['Menlo', 'Courier New', 'MiSans'],
       fontSize: 13,
       color: theme.colorScheme.onSurface,
     );
@@ -297,15 +380,40 @@ class _CrcToolContent extends StatelessWidget {
         children: [
           _paramRow('宽度 WIDTH', '${p.width}', labelStyle, valueStyle),
           const SizedBox(height: 4),
-          _paramRow('多项式 POLY（Hex）', '0x${hexVal(p.poly)}', labelStyle, valueStyle),
+          _paramRow(
+            '多项式 POLY（Hex）',
+            '0x${hexVal(p.poly)}',
+            labelStyle,
+            valueStyle,
+          ),
           const SizedBox(height: 4),
-          _paramRow('初始值 INIT（Hex）', '0x${hexVal(p.init)}', labelStyle, valueStyle),
+          _paramRow(
+            '初始值 INIT（Hex）',
+            '0x${hexVal(p.init)}',
+            labelStyle,
+            valueStyle,
+          ),
           const SizedBox(height: 4),
-          _paramRow('结果异或值 XOROUT（Hex）', '0x${hexVal(p.xorout)}', labelStyle, valueStyle),
+          _paramRow(
+            '结果异或值 XOROUT（Hex）',
+            '0x${hexVal(p.xorout)}',
+            labelStyle,
+            valueStyle,
+          ),
           const SizedBox(height: 4),
-          _paramRow('输入数据反转 REFIN', p.refin ? 'true' : 'false', labelStyle, valueStyle),
+          _paramRow(
+            '输入数据反转 REFIN',
+            p.refin ? 'true' : 'false',
+            labelStyle,
+            valueStyle,
+          ),
           const SizedBox(height: 4),
-          _paramRow('输出数据反转 REFOUT', p.refout ? 'true' : 'false', labelStyle, valueStyle),
+          _paramRow(
+            '输出数据反转 REFOUT',
+            p.refout ? 'true' : 'false',
+            labelStyle,
+            valueStyle,
+          ),
         ],
       ),
     );
@@ -319,14 +427,8 @@ class _CrcToolContent extends StatelessWidget {
   ) {
     return Row(
       children: [
-        Expanded(
-          flex: 3,
-          child: Text(label, style: labelStyle),
-        ),
-        Expanded(
-          flex: 2,
-          child: Text(value, style: valueStyle),
-        ),
+        Expanded(flex: 3, child: Text(label, style: labelStyle)),
+        Expanded(flex: 2, child: Text(value, style: valueStyle)),
       ],
     );
   }
@@ -364,107 +466,120 @@ class _CrcToolContent extends StatelessWidget {
       onEnter: (_) => viewModel.enterAboutHover(),
       onExit: (_) => viewModel.exitAboutHover(),
       child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('CRC 参数模型列表', style: theme.textTheme.titleSmall),
-                ),
-                IconButton(
-                  onPressed: () => viewModel.dismissAbout(),
-                  icon: const Icon(Icons.close, size: 18),
-                  visualDensity: VisualDensity.compact,
-                  tooltip: '关闭',
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'CRC校验（循环冗余校验）小知识',
-                      style: headingStyle,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'CRC 参数模型列表',
+                      style: theme.textTheme.titleSmall,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'CRC即循环冗余校验码（Cyclic Redundancy Check）：是数据通信领域中最常用的一种查错校验码，其特征是信息字段和校验字段的长度可以任意选定。循环冗余检查（CRC）是一种数据传输检错功能，对数据进行多项式计算，并将得到的结果附在帧的后面，接收设备也执行类似的算法，以保证数据传输的正确性和完整性。',
-                      style: bodyStyle,
-                    ),
-                    const SizedBox(height: 10),
-                    Text('CRC算法参数模型解释：', style: headingStyle),
-                    const SizedBox(height: 4),
-                    Text('NAME：参数模型名称。', style: bodyStyle),
-                    Text('WIDTH：宽度，即CRC比特数。', style: bodyStyle),
-                    Text('POLY：生成项的简写，以16进制表示。例如：CRC-32即是0x04C11DB7，忽略了最高位的"1"，即完整的生成项是0x104C11DB7。', style: bodyStyle),
-                    Text('INIT：这是算法开始时寄存器（crc）的初始化预置值，十六进制表示。', style: bodyStyle),
-                    Text('REFIN：待测数据的每个字节是否按位反转，True或False。', style: bodyStyle),
-                    Text('REFOUT：在计算后之后，异或输出之前，整个数据是否按位反转，True或False。', style: bodyStyle),
-                    Text('XOROUT：计算结果与此参数异或后得到最终的CRC值。', style: bodyStyle),
-                    const SizedBox(height: 14),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        headingTextStyle: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                          color: colorScheme.onSurface,
-                        ),
-                        dataTextStyle: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSurface,
-                        ),
-                        columnSpacing: 12,
-                        headingRowHeight: 32,
-                        dataRowMinHeight: 26,
-                        dataRowMaxHeight: 26,
-                        columns: const [
-                          DataColumn(label: Text('名称')),
-                          DataColumn(label: Text('宽度'), numeric: true),
-                          DataColumn(label: Text('多项式(Poly)')),
-                          DataColumn(label: Text('初始值(Init)')),
-                          DataColumn(label: Text('异或值(XorOut)')),
-                          DataColumn(label: Text('输入反转')),
-                          DataColumn(label: Text('输出反转')),
-                        ],
-                        rows: CrcPresets.all.map((preset) {
-                          final p = preset.params;
-                          final isSelected =
-                              viewModel.selectedPreset == preset.name;
-                          final hexLen = (p.width + 3) ~/ 4;
-                          String hexVal(int v) => v
-                              .toRadixString(16)
-                              .toUpperCase()
-                              .padLeft(hexLen, '0');
-                          return DataRow(
-                            selected: isSelected,
-                            cells: [
-                              DataCell(Text(preset.name)),
-                              DataCell(Text('${p.width}')),
-                              DataCell(Text('0x${hexVal(p.poly)}')),
-                              DataCell(Text('0x${hexVal(p.init)}')),
-                              DataCell(Text('0x${hexVal(p.xorout)}')),
-                              DataCell(Text(p.refin ? '✓' : '✗')),
-                              DataCell(Text(p.refout ? '✓' : '✗')),
-                            ],
-                          );
-                        }).toList(),
+                  ),
+                  IconButton(
+                    onPressed: () => viewModel.dismissAbout(),
+                    icon: const Icon(Icons.close, size: 18),
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '关闭',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('CRC校验（循环冗余校验）小知识', style: headingStyle),
+                      const SizedBox(height: 4),
+                      Text(
+                        'CRC即循环冗余校验码（Cyclic Redundancy Check）：是数据通信领域中最常用的一种查错校验码，其特征是信息字段和校验字段的长度可以任意选定。循环冗余检查（CRC）是一种数据传输检错功能，对数据进行多项式计算，并将得到的结果附在帧的后面，接收设备也执行类似的算法，以保证数据传输的正确性和完整性。',
+                        style: bodyStyle,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      Text('CRC算法参数模型解释：', style: headingStyle),
+                      const SizedBox(height: 4),
+                      Text('NAME：参数模型名称。', style: bodyStyle),
+                      Text('WIDTH：宽度，即CRC比特数。', style: bodyStyle),
+                      Text(
+                        'POLY：生成项的简写，以16进制表示。例如：CRC-32即是0x04C11DB7，忽略了最高位的"1"，即完整的生成项是0x104C11DB7。',
+                        style: bodyStyle,
+                      ),
+                      Text(
+                        'INIT：这是算法开始时寄存器（crc）的初始化预置值，十六进制表示。',
+                        style: bodyStyle,
+                      ),
+                      Text(
+                        'REFIN：待测数据的每个字节是否按位反转，True或False。',
+                        style: bodyStyle,
+                      ),
+                      Text(
+                        'REFOUT：在计算后之后，异或输出之前，整个数据是否按位反转，True或False。',
+                        style: bodyStyle,
+                      ),
+                      Text('XOROUT：计算结果与此参数异或后得到最终的CRC值。', style: bodyStyle),
+                      const SizedBox(height: 14),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          headingTextStyle: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: colorScheme.onSurface,
+                          ),
+                          dataTextStyle: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurface,
+                          ),
+                          columnSpacing: 12,
+                          headingRowHeight: 32,
+                          dataRowMinHeight: 26,
+                          dataRowMaxHeight: 26,
+                          columns: const [
+                            DataColumn(label: Text('名称')),
+                            DataColumn(label: Text('宽度'), numeric: true),
+                            DataColumn(label: Text('多项式(Poly)')),
+                            DataColumn(label: Text('初始值(Init)')),
+                            DataColumn(label: Text('异或值(XorOut)')),
+                            DataColumn(label: Text('输入反转')),
+                            DataColumn(label: Text('输出反转')),
+                          ],
+                          rows: CrcPresets.all.map((preset) {
+                            final p = preset.params;
+                            final isSelected =
+                                viewModel.selectedPreset == preset.name;
+                            final hexLen = (p.width + 3) ~/ 4;
+                            String hexVal(int v) => v
+                                .toRadixString(16)
+                                .toUpperCase()
+                                .padLeft(hexLen, '0');
+                            return DataRow(
+                              selected: isSelected,
+                              cells: [
+                                DataCell(Text(preset.name)),
+                                DataCell(Text('${p.width}')),
+                                DataCell(Text('0x${hexVal(p.poly)}')),
+                                DataCell(Text('0x${hexVal(p.init)}')),
+                                DataCell(Text('0x${hexVal(p.xorout)}')),
+                                DataCell(Text(p.refin ? '✓' : '✗')),
+                                DataCell(Text(p.refout ? '✓' : '✗')),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ));
+    );
   }
 
   Widget _buildCustomParams(CrcViewModel viewModel) {
@@ -475,7 +590,7 @@ class _CrcToolContent extends StatelessWidget {
           children: [
             SizedBox(
               width: 90,
-              child: DropdownButtonFormField<int>(
+              child: AppDropdownFormField<int>(
                 key: ValueKey(viewModel.customParams.width),
                 initialValue: viewModel.customParams.width,
                 decoration: const InputDecoration(
@@ -510,7 +625,11 @@ class _CrcToolContent extends StatelessWidget {
                     vertical: 6,
                   ),
                 ),
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                style: const TextStyle(
+                  fontFamily: 'Consolas',
+                  fontFamilyFallback: ['Menlo', 'Courier New', 'MiSans'],
+                  fontSize: 13,
+                ),
                 onChanged: viewModel.setCustomPoly,
               ),
             ),
@@ -530,7 +649,11 @@ class _CrcToolContent extends StatelessWidget {
                     vertical: 6,
                   ),
                 ),
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                style: const TextStyle(
+                  fontFamily: 'Consolas',
+                  fontFamilyFallback: ['Menlo', 'Courier New', 'MiSans'],
+                  fontSize: 13,
+                ),
                 onChanged: viewModel.setCustomInit,
               ),
             ),
@@ -546,7 +669,11 @@ class _CrcToolContent extends StatelessWidget {
                     vertical: 6,
                   ),
                 ),
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                style: const TextStyle(
+                  fontFamily: 'Consolas',
+                  fontFamilyFallback: ['Menlo', 'Courier New', 'MiSans'],
+                  fontSize: 13,
+                ),
                 onChanged: viewModel.setCustomXorout,
               ),
             ),
@@ -582,7 +709,8 @@ class _CrcToolContent extends StatelessWidget {
   Widget _buildResultCard(BuildContext context, CrcViewModel viewModel) {
     final theme = Theme.of(context);
     final monoStyle = TextStyle(
-      fontFamily: 'monospace',
+      fontFamily: 'Consolas',
+      fontFamilyFallback: const ['Menlo', 'Courier New', 'MiSans'],
       fontSize: 14,
       color: theme.colorScheme.onSurface,
     );
@@ -599,9 +727,7 @@ class _CrcToolContent extends StatelessWidget {
               Expanded(
                 child: Center(
                   child: Text(
-                    viewModel.currentBytes == null
-                        ? '请输入数据'
-                        : '无法计算（请检查输入）',
+                    viewModel.currentBytes == null ? '请输入数据' : '无法计算（请检查输入）',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -639,6 +765,61 @@ class _CrcToolContent extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFileRow(BuildContext context, CrcViewModel vm, int index) {
+    final file = vm.files[index];
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        border: index < vm.files.length - 1
+            ? Border(
+                bottom: BorderSide(
+                  color: theme.dividerColor.withValues(alpha: 0.3),
+                ),
+              )
+            : null,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            height: 24,
+            width: 24,
+            child: Checkbox(
+              value: file.selected,
+              onChanged: (_) => vm.toggleFileSelection(index),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.insert_drive_file_outlined, size: 16),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '${file.name} · ${CrcViewModel.formatFileSize(file.size)}',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: file.selected ? null : theme.disabledColor,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 24,
+            width: 24,
+            child: IconButton(
+              onPressed: () => vm.removeFile(index),
+              icon: const Icon(Icons.close, size: 14),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              tooltip: '移除',
+            ),
+          ),
+        ],
       ),
     );
   }

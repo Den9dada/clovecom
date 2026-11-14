@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: ToolboxView()));
     await tester.pump();
 
-    expect(find.text('HEX转BIN'), findsWidgets);
+    expect(find.text('HEX/BIN互转'), findsWidgets);
     expect(find.text('BIN编辑'), findsWidgets);
     expect(find.text('BIN拼接'), findsWidgets);
     expect(find.text('文件转换、编辑与拼接'), findsNothing);
@@ -105,14 +105,21 @@ void main() {
 
     await tester.tap(find.text('BIN拼接').last);
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).at(1), '0x1000');
-    await tester.enterText(find.byType(TextField).at(2), '01 02');
-    await tester.tap(find.text('新增HEX片段'));
+
+    // 点击"新增HEX段"打开对话框
+    await tester.tap(find.text('新增HEX段'));
+    await tester.pumpAndSettle();
+
+    // 在对话框中输入地址和HEX数据
+    final textFields = find.byType(TextField);
+    await tester.enterText(textFields.first, '0x1000');
+    await tester.enterText(textFields.last, '01 02');
+    await tester.tap(find.text('添加'));
     await tester.pumpAndSettle();
 
     expect(find.text('手动HEX 1'), findsOneWidget);
 
-    await tester.tap(find.text('HEX转BIN').last);
+    await tester.tap(find.text('HEX/BIN互转').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('BIN拼接').last);
     await tester.pumpAndSettle();

@@ -46,3 +46,8 @@ app.*.map.json
 
 # Release package (compiled binaries)
 /release_package/
+
+**/__pycache__/
+
+# Qoder agent artifacts
+.qoder/

@@ -5,12 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('links segments by address and fills gaps', () {
     final result = BinLinkService.link([
-      BinLinkSegment(name: 'a.bin', address: 0x1000, bytes: [0x01, 0x02]),
-      BinLinkSegment(name: 'manual', address: 0x1004, bytes: [0xAA]),
+      BinLinkSegment(name: 'a.bin', address: 0x01, bytes: [0x01, 0x02]),
+      BinLinkSegment(name: 'manual', address: 0x05, bytes: [0xAA]),
     ], fillByte: 0xFF);
 
-    expect(result.baseAddress, 0x1000);
-    expect(result.bytes, [0x01, 0x02, 0xFF, 0xFF, 0xAA]);
+    expect(result.baseAddress, 0);
+    // 从0开始: [0xFF, 0x01, 0x02, 0xFF, 0xFF, 0xAA]
+    expect(result.bytes, [0xFF, 0x01, 0x02, 0xFF, 0xFF, 0xAA]);
   });
 
   test('rejects overlapping segments', () {

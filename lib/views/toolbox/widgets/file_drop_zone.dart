@@ -1,5 +1,6 @@
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:clovecom/utils/file_picker_compat.dart';
 import 'package:flutter/material.dart';
 
 class FileDropZone extends StatefulWidget {
@@ -86,7 +87,7 @@ class _FileDropZoneState extends State<FileDropZone> {
   }
 
   Future<void> _pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerCompat.pickFiles(
       allowMultiple: widget.allowMultiple,
       type: widget.allowedExtensions.isEmpty ? FileType.any : FileType.custom,
       allowedExtensions: widget.allowedExtensions.isEmpty

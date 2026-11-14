@@ -1,197 +1,150 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:clovecom/utils/file_picker_compat.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/toolbox/bin_edit_operation.dart';
-import '../../services/toolbox/bin_editor_service.dart';
+import '../../models/toolbox/bin_file_entry.dart';
+
 import '../../services/toolbox/hex_text_parser.dart';
 
 class BinEditorViewModel extends ChangeNotifier {
-  String _fileName = '';
-  String _filePath = '';
-  List<int> _bytes = [];
-  bool _hasUnsavedChanges = false;
-  String? _lastError;
-  final List<BinEditOperation> _history = [];
+  final List<BinFileEntry> _files = [];
+  int? _activeFileIndex;
 
-  String get fileName => _fileName;
-  String get filePath => _filePath;
-  List<int> get bytes => _bytes;
-  bool get hasFile => _fileName.isNotEmpty;
-  bool get hasUnsavedChanges => _hasUnsavedChanges;
+  List<BinFileEntry> get files => List.unmodifiable(_files);
+  int? get activeFileIndex => _activeFileIndex;
+  BinFileEntry? get activeFile {
+    if (_activeFileIndex == null || _activeFileIndex! >= _files.length) {
+      return null;
+    }
+    return _files[_activeFileIndex!];
+  }
+
   String? get lastError => _lastError;
-  List<BinEditOperation> get history => List.unmodifiable(_history);
+  String? _lastError;
+
+  bool get hasFile => activeFile != null;
+  String get fileName => activeFile?.name ?? '';
+  String get filePath => activeFile?.path ?? '';
+  List<int> get bytes => activeFile?.currentBytes ?? <int>[];
+  bool get hasUnsavedChanges =>
+      _files.any((f) => f.hasUnsavedChanges) ||
+      (activeFile?.hasUnsavedChanges ?? false);
+  List<BinEditOperation> get history =>
+      List.unmodifiable(activeFile?.history ?? []);
 
   void clearError() {
     _lastError = null;
     notifyListeners();
   }
 
-  void loadBinBytes({
-    required String name,
-    required String path,
-    required List<int> bytes,
-  }) {
-    _fileName = name;
-    _filePath = path;
-    _bytes = [...bytes];
-    _hasUnsavedChanges = false;
-    _history.clear();
-    _lastError = null;
+  Future<void> importPaths(List<String> paths) async {
+    for (final path in paths) {
+      try {
+        final name = _fileNameFromPath(path);
+        final bytes = await File(path).readAsBytes();
+        _files.add(BinFileEntry(name: name, path: path, bytes: bytes));
+      } catch (error) {
+        _lastError = '读取 BIN 文件失败: $error';
+      }
+    }
+    if (_activeFileIndex == null && _files.isNotEmpty) {
+      _activeFileIndex = 0;
+    }
     notifyListeners();
   }
 
-  Future<void> importPaths(List<String> paths) async {
-    if (paths.isEmpty) {
-      return;
+  void switchToFile(int index) {
+    if (index < 0 || index >= _files.length) return;
+    _activeFileIndex = index;
+    notifyListeners();
+  }
+
+  void removeFile(int index) {
+    if (index < 0 || index >= _files.length) return;
+    _files.removeAt(index);
+    if (_activeFileIndex != null && index < _activeFileIndex!) {
+      _activeFileIndex = _activeFileIndex! - 1;
     }
-    final path = paths.first;
-    try {
-      loadBinBytes(
-        name: _fileNameFromPath(path),
-        path: path,
-        bytes: await File(path).readAsBytes(),
-      );
-    } catch (error) {
-      _lastError = '读取 BIN 文件失败: $error';
-      notifyListeners();
+    if (_files.isEmpty) {
+      _activeFileIndex = null;
+    } else if (_activeFileIndex != null && _activeFileIndex! >= _files.length) {
+      _activeFileIndex = _files.length - 1;
     }
+    notifyListeners();
   }
 
   void applyInsert(String addressText, String hexText) {
-    _applyEdit(() {
-      final address = HexTextParser.parseNumber(addressText);
-      final insertBytes = HexTextParser.parseBytes(hexText);
-      _bytes = BinEditorService.insertBytes(_bytes, address, insertBytes);
-      _history.add(
-        BinEditOperation(
-          type: BinEditOperationType.insert,
-          address: address,
-          length: insertBytes.length,
-          deltaBytes: insertBytes,
-        ),
-      );
-    });
+    _applyEdit(
+      () => activeFile!.insert(
+        HexTextParser.parseNumber(addressText),
+        HexTextParser.parseBytes(hexText),
+      ),
+    );
   }
 
   void applyReplace(String addressText, String hexText) {
-    _applyEdit(() {
-      final address = HexTextParser.parseNumber(addressText);
-      final replaceBytes = HexTextParser.parseBytes(hexText);
-      final oldBytes = _bytes.sublist(
-        address,
-        (address + replaceBytes.length).clamp(0, _bytes.length),
-      );
-      _bytes = BinEditorService.replaceBytes(_bytes, address, replaceBytes);
-      _history.add(
-        BinEditOperation(
-          type: BinEditOperationType.replace,
-          address: address,
-          length: replaceBytes.length,
-          deltaBytes: oldBytes,
-        ),
-      );
-    });
+    _applyEdit(
+      () => activeFile!.replace(
+        HexTextParser.parseNumber(addressText),
+        HexTextParser.parseBytes(hexText),
+      ),
+    );
   }
 
   void applyDelete(String addressText, String lengthText) {
-    _applyEdit(() {
-      final address = HexTextParser.parseNumber(addressText);
-      final length = HexTextParser.parseNumber(lengthText);
-      final end = (address + length).clamp(0, _bytes.length);
-      final deletedBytes = _bytes.sublist(address, end);
-      _bytes = BinEditorService.deleteBytes(_bytes, address, length);
-      _history.add(
-        BinEditOperation(
-          type: BinEditOperationType.delete,
-          address: address,
-          length: length,
-          deltaBytes: deletedBytes,
-        ),
-      );
-    });
+    _applyEdit(
+      () => activeFile!.delete(
+        HexTextParser.parseNumber(addressText),
+        HexTextParser.parseNumber(lengthText),
+      ),
+    );
   }
 
   void replaceByte(int index, String hexText) {
     _applyEdit(() {
       final bytes = HexTextParser.parseBytes(hexText);
-      if (bytes.length != 1) {
-        throw const FormatException('请输入 1 个字节');
-      }
-      final oldByte = _bytes[index];
-      _bytes = BinEditorService.replaceBytes(_bytes, index, bytes);
-      _history.add(
-        BinEditOperation(
-          type: BinEditOperationType.replace,
-          address: index,
-          length: 1,
-          deltaBytes: [oldByte],
-        ),
-      );
+      if (bytes.length != 1) throw const FormatException('请输入 1 个字节');
+      activeFile!.replace(index, bytes);
     });
   }
 
   void undoLast() {
-    if (_history.isEmpty) {
-      return;
-    }
-    final operation = _history.removeLast();
-    switch (operation.type) {
-      case BinEditOperationType.insert:
-        _bytes = BinEditorService.deleteBytes(
-          _bytes,
-          operation.address,
-          operation.length,
-        );
-      case BinEditOperationType.replace:
-        _bytes = BinEditorService.replaceBytes(
-          _bytes,
-          operation.address,
-          operation.deltaBytes,
-        );
-      case BinEditOperationType.delete:
-        _bytes = BinEditorService.insertBytes(
-          _bytes,
-          operation.address,
-          operation.deltaBytes,
-        );
-    }
-    _hasUnsavedChanges = _history.isNotEmpty;
-    _lastError = null;
-    notifyListeners();
+    if (activeFile == null || activeFile!.history.isEmpty) return;
+    _applyEdit(() => activeFile!.undo());
   }
 
   Future<void> exportEdited() async {
-    if (!hasFile) {
+    final f = activeFile;
+    if (f == null) {
       _lastError = '请先导入 BIN 文件';
       notifyListeners();
       return;
     }
-    final path = await FilePicker.platform.saveFile(
+    final path = await FilePickerCompat.saveFile(
       dialogTitle: '导出编辑后的BIN文件',
-      fileName: '${_baseName(_fileName)}_edited.bin',
+      fileName: '${_baseName(f.name)}_edited.bin',
       type: FileType.custom,
       allowedExtensions: const ['bin'],
     );
-    if (path == null) {
-      return;
-    }
-    await File(path).writeAsBytes(_bytes);
-    _hasUnsavedChanges = false;
+    if (path == null) return;
+    final snapshot = f.currentBytes;
+    await File(path).writeAsBytes(snapshot);
+    f.markSaved(snapshot);
     _lastError = null;
     notifyListeners();
   }
 
   void _applyEdit(VoidCallback edit) {
-    if (!hasFile) {
+    if (activeFile == null) {
       _lastError = '请先导入 BIN 文件';
       notifyListeners();
       return;
     }
     try {
       edit();
-      _hasUnsavedChanges = true;
       _lastError = null;
     } catch (error) {
       _lastError = error.toString();

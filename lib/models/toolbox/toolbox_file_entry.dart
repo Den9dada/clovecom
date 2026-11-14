@@ -23,7 +23,12 @@ class ToolboxFileEntry {
 
   bool get isHex => extension.toLowerCase() == 'hex';
   bool get isBin => extension.toLowerCase() == 'bin';
-  bool get canExport => isHex && status == ToolboxFileStatus.parsed;
+  /// HEX 文件是否可导出为 BIN
+  bool get canExportBin => isHex && status == ToolboxFileStatus.parsed && bytes != null;
+  /// BIN 文件是否可导出为 HEX
+  bool get canExportHex => isBin && bytes != null;
+  /// 是否可导出（BIN→HEX 或 HEX→BIN）
+  bool get canExport => canExportBin || canExportHex;
 
   ToolboxFileEntry copyWith({
     String? name,

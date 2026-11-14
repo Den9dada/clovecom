@@ -11,11 +11,13 @@ class HexAsciiViewer extends StatefulWidget {
     required this.bytes,
     this.baseAddress = 0,
     this.onByteChanged,
+    this.onScrollChanged,
   });
 
   final List<int> bytes;
   final int baseAddress;
   final void Function(int index, int value)? onByteChanged;
+  final void Function(double scrollOffset, double maxExtent)? onScrollChanged;
 
   @override
   State<HexAsciiViewer> createState() => _HexAsciiViewerState();
@@ -45,13 +47,13 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   LogicalKeyboardKey? _lastNavUpKey;
   var _lastNavUpMicros = 0;
   double? _cachedCharW;
-  String? _lastHash;
+
   HexPainterCache? _cache;
 
   @override
   void initState() {
     super.initState();
-    _lastHash = _dataHash;
+
     _scrollCtrl.addListener(_onScroll);
     _focusNode.addListener(_onFocusChange);
   }
@@ -69,6 +71,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
 
   void _onFocusChange() {
     if (!_focusNode.hasFocus) {
+      _discardDraft();
       _navDelayTimer?.cancel();
       _navRepeatTimer?.cancel();
       _navDelayTimer = null;
@@ -84,14 +87,15 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   @override
   void didUpdateWidget(HexAsciiViewer old) {
     super.didUpdateWidget(old);
-    final h = _dataHash;
-    if (_lastHash != h || old.baseAddress != widget.baseAddress) {
+
+    if (!identical(old.bytes, widget.bytes) ||
+        old.baseAddress != widget.baseAddress) {
       _editBuffer.clear();
       _cache?.clear();
       if (_cursorOffset >= widget.bytes.length) {
         _cursorOffset = widget.bytes.isEmpty ? -1 : widget.bytes.length - 1;
       }
-      _lastHash = h;
+      _highNibble = true;
     }
   }
 
@@ -101,10 +105,13 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
       _scrollOffset = newOffset;
       setState(() {});
     }
+    if (_scrollCtrl.hasClients) {
+      widget.onScrollChanged?.call(
+        _scrollCtrl.offset,
+        _scrollCtrl.position.maxScrollExtent,
+      );
+    }
   }
-
-  String get _dataHash =>
-      widget.bytes.isEmpty ? '' : '${widget.bytes.length}:${widget.bytes[0]}';
 
   @override
   Widget build(BuildContext context) {
@@ -290,15 +297,22 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
       ? 0
       : (_editBuffer[o] ?? widget.bytes[o]);
 
+  void _discardDraft() {
+    _editBuffer.clear();
+    _highNibble = true;
+    _cache?.clear();
+  }
+
   void _onTap(TapDownDetails d, double cw) {
+    _discardDraft();
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return;
     final w = box.size.width;
     final hexStart = _hPad + _addressColWidth + _gap;
     final aStart = w - _gap - _asciiColWidth;
     final dx = d.localPosition.dx;
-    final dy = d.localPosition.dy +
-        (_scrollCtrl.hasClients ? _scrollCtrl.offset : 0);
+    final dy =
+        d.localPosition.dy + (_scrollCtrl.hasClients ? _scrollCtrl.offset : 0);
 
     final totalLines = (widget.bytes.length / _bytesPerLine).ceil();
     if (dy < 0 || dy >= totalLines * _lineHeight) return;
@@ -357,7 +371,8 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
     if (_cursorOffset < 0) return KeyEventResult.ignored;
 
     // --- Arrow key navigation (common: preview + edit) ---
-    final isArrow = k == LogicalKeyboardKey.arrowLeft ||
+    final isArrow =
+        k == LogicalKeyboardKey.arrowLeft ||
         k == LogicalKeyboardKey.arrowRight ||
         k == LogicalKeyboardKey.arrowUp ||
         k == LogicalKeyboardKey.arrowDown;
@@ -370,8 +385,8 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
       _navRepeatTimer?.cancel();
 
       final now = e.timeStamp.inMicroseconds;
-      final isDoubleClick = _lastNavUpKey == k &&
-          now - _lastNavUpMicros < _doubleClickWindowUs;
+      final isDoubleClick =
+          _lastNavUpKey == k && now - _lastNavUpMicros < _doubleClickWindowUs;
 
       if (isDoubleClick) {
         _navDirection = k;
@@ -410,6 +425,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
     if (widget.onByteChanged == null) {
       // Enter: move focus to next byte
       if (k == LogicalKeyboardKey.enter) {
+        _discardDraft();
         if (_cursorOffset < widget.bytes.length - 1) _cursorOffset++;
         _scrollToCursor();
         setState(() {});
@@ -418,6 +434,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
 
       // Escape: cancel selection
       if (k == LogicalKeyboardKey.escape) {
+        _discardDraft();
         _cursorOffset = -1;
         _highNibble = true;
         _focusNode.unfocus();
@@ -431,6 +448,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
     // --- Edit mode: hex input ---
     // Escape: cancel selection
     if (k == LogicalKeyboardKey.escape) {
+      _discardDraft();
       _cursorOffset = -1;
       _highNibble = true;
       _focusNode.unfocus();
@@ -440,6 +458,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
 
     // Enter: commit and move to next byte
     if (k == LogicalKeyboardKey.enter) {
+      _discardDraft();
       _highNibble = true;
       if (_cursorOffset < widget.bytes.length - 1) _cursorOffset++;
       _scrollToCursor();
@@ -462,6 +481,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   }
 
   void _doNav(LogicalKeyboardKey k) {
+    _discardDraft();
     if (k == LogicalKeyboardKey.arrowLeft) {
       if (_cursorOffset > 0) _cursorOffset--;
     } else if (k == LogicalKeyboardKey.arrowRight) {
@@ -478,23 +498,16 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   }
 
   void _inputHex(int hv) {
-    final old = _getByte(_cursorOffset);
-    int nb;
     if (_highNibble) {
-      nb = (hv << 4) | (old & 0x0F);
+      _editBuffer[_cursorOffset] =
+          (hv << 4) | (widget.bytes[_cursorOffset] & 0x0F);
       _highNibble = false;
     } else {
-      nb = (old & 0xF0) | hv;
-      _highNibble = true;
-      widget.onByteChanged?.call(_cursorOffset, nb);
+      final value = (_getByte(_cursorOffset) & 0xF0) | hv;
+      _discardDraft();
+      widget.onByteChanged?.call(_cursorOffset, value);
     }
-    if (nb != old) {
-      if (nb == widget.bytes[_cursorOffset]) {
-        _editBuffer.remove(_cursorOffset);
-      } else {
-        _editBuffer[_cursorOffset] = nb;
-      }
-    }
+    _cache?.clear();
   }
 
   int? _keyHex(LogicalKeyboardKey k) => switch (k) {
@@ -535,10 +548,16 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   TextStyle _mono(BuildContext c) =>
       Theme.of(c).textTheme.bodySmall?.copyWith(
         fontFamily: 'Consolas',
+        fontFamilyFallback: const ['Menlo', 'Courier New', 'MiSans'],
         fontSize: 14,
         height: 1.35,
       ) ??
-      const TextStyle(fontFamily: 'Consolas', fontSize: 14, height: 1.35);
+      const TextStyle(
+        fontFamily: 'Consolas',
+        fontFamilyFallback: ['Menlo', 'Courier New', 'MiSans'],
+        fontSize: 14,
+        height: 1.35,
+      );
 }
 
 class HexPainterCache {

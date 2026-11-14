@@ -1,5 +1,5 @@
 // 串口通信数据模型文件
-// 
+//
 // 该文件定义了串口通信相关的所有数据模型，包括：
 // - SerialPortConfig: 串口配置参数
 // - SerialPortMessage: 串口消息数据
@@ -12,22 +12,22 @@
 class SerialPortConfig {
   /// 串口端口号
   final String portName;
-  
+
   /// 串口友好名称
   final String portFriendlyName;
-  
+
   /// 波特率
   final int baudRate;
-  
+
   /// 数据位
   final int dataBits;
-  
+
   /// 停止位
   final int stopBits;
-  
+
   /// 校验位
   final String parity;
-  
+
   /// 流控制
   final String flowControl;
 
@@ -71,16 +71,16 @@ class SerialPortConfig {
 class SerialPortMessage {
   /// 消息数据内容（文本格式）
   final String data;
-  
+
   /// 消息数据内容（十六进制格式）
   final String hexData;
-  
+
   /// 消息时间戳
   final DateTime timestamp;
-  
+
   /// 是否为发送的消息
   final bool isSent;
-  
+
   /// 数据长度（字节数）
   final int dataLength;
 
@@ -97,19 +97,13 @@ class SerialPortMessage {
 class SerialPortState {
   /// 是否已连接串口
   final bool isConnected;
-  
+
   /// 错误信息
   final String? error;
 
-  SerialPortState({
-    this.isConnected = false,
-    this.error,
-  });
+  SerialPortState({this.isConnected = false, this.error});
 
-  SerialPortState copyWith({
-    bool? isConnected,
-    String? error,
-  }) {
+  SerialPortState copyWith({bool? isConnected, String? error}) {
     return SerialPortState(
       isConnected: isConnected ?? this.isConnected,
       error: error ?? this.error,
@@ -118,38 +112,34 @@ class SerialPortState {
 }
 
 /// 发送模式枚举
-enum SendMode {
-  text,
-  hex,
-  file,
-}
+enum SendMode { text, hex, file }
 
 /// 显示配置类
 class DisplayConfig {
   /// 接收区是否使用HEX显示
   final bool receiveHex;
-  
+
   /// 接收区是否启用日志模式
   final bool logMode;
-  
+
   /// 接收区是否自动换行
   final bool autoWrap;
-  
+
   /// 是否隐藏接收数据
   final bool hideReceive;
-  
+
   /// 是否将接收数据保存为文件
   final bool saveToFile;
-  
+
   /// 是否自动滚动
   final bool autoScroll;
-  
+
   /// 发送区是否使用HEX
   final bool sendHex;
-  
+
   /// 是否循环发送
   final bool loopSend;
-  
+
   /// 循环发送间隔（毫秒）
   final int loopInterval;
 
@@ -221,7 +211,7 @@ class FileSendConfig {
     this.sendInterval = 100,
     this.sentBytes = 0,
     this.isSending = false,
-    this.protocolName = '分包发送',
+    this.protocolName = 'Ymodem-1K',
   });
 
   FileSendConfig copyWith({
@@ -303,6 +293,77 @@ class PortDetailInfo {
   String get shortDisplayText => portName;
 }
 
+/// 文件接收配置类
+class FileReceiveConfig {
+  /// 保存路径（用户手动选择的完整文件路径，优先级高于 defaultSaveDir）
+  final String savePath;
+
+  /// 保存文件名
+  final String fileName;
+
+  /// 默认存储目录（接收文件自动保存到此目录，使用发送端文件名）
+  final String defaultSaveDir;
+
+  /// 已接收字节数
+  final int receivedBytes;
+
+  /// 总字节数（Ymodem 协议从文件名包获取，分包接收未知）
+  final int totalBytes;
+
+  /// 是否正在接收
+  final bool isReceiving;
+
+  /// 使用的协议名称
+  final String protocolName;
+
+  /// 每包大小（仅分包接收使用）
+  final int packetSize;
+
+  /// 接收间隔（仅分包接收使用）
+  final int receiveInterval;
+
+  FileReceiveConfig({
+    this.savePath = '',
+    this.fileName = '',
+    this.defaultSaveDir = '',
+    this.receivedBytes = 0,
+    this.totalBytes = 0,
+    this.isReceiving = false,
+    this.protocolName = 'Ymodem-1K 接收',
+    this.packetSize = 1024,
+    this.receiveInterval = 100,
+  });
+
+  FileReceiveConfig copyWith({
+    String? savePath,
+    String? fileName,
+    String? defaultSaveDir,
+    int? receivedBytes,
+    int? totalBytes,
+    bool? isReceiving,
+    String? protocolName,
+    int? packetSize,
+    int? receiveInterval,
+  }) {
+    return FileReceiveConfig(
+      savePath: savePath ?? this.savePath,
+      fileName: fileName ?? this.fileName,
+      defaultSaveDir: defaultSaveDir ?? this.defaultSaveDir,
+      receivedBytes: receivedBytes ?? this.receivedBytes,
+      totalBytes: totalBytes ?? this.totalBytes,
+      isReceiving: isReceiving ?? this.isReceiving,
+      protocolName: protocolName ?? this.protocolName,
+      packetSize: packetSize ?? this.packetSize,
+      receiveInterval: receiveInterval ?? this.receiveInterval,
+    );
+  }
+
+  double get progress {
+    if (totalBytes <= 0) return 0.0;
+    return receivedBytes / totalBytes;
+  }
+}
+
 /// 固件升级配置类
 class FirmwareUpgradeConfig {
   /// 固件文件路径
@@ -313,12 +374,6 @@ class FirmwareUpgradeConfig {
 
   /// 固件文件大小
   final int firmwareSize;
-
-  /// 升级脚本路径
-  final String scriptPath;
-
-  /// 升级脚本名称
-  final String scriptName;
 
   /// 升级进度 (0.0 ~ 1.0)
   final double progress;
@@ -333,8 +388,6 @@ class FirmwareUpgradeConfig {
     this.firmwarePath = '',
     this.firmwareName = '',
     this.firmwareSize = 0,
-    this.scriptPath = '',
-    this.scriptName = '',
     this.progress = 0.0,
     this.isUpgrading = false,
     this.logs = const [],
@@ -344,8 +397,6 @@ class FirmwareUpgradeConfig {
     String? firmwarePath,
     String? firmwareName,
     int? firmwareSize,
-    String? scriptPath,
-    String? scriptName,
     double? progress,
     bool? isUpgrading,
     List<String>? logs,
@@ -354,8 +405,6 @@ class FirmwareUpgradeConfig {
       firmwarePath: firmwarePath ?? this.firmwarePath,
       firmwareName: firmwareName ?? this.firmwareName,
       firmwareSize: firmwareSize ?? this.firmwareSize,
-      scriptPath: scriptPath ?? this.scriptPath,
-      scriptName: scriptName ?? this.scriptName,
       progress: progress ?? this.progress,
       isUpgrading: isUpgrading ?? this.isUpgrading,
       logs: logs ?? this.logs,

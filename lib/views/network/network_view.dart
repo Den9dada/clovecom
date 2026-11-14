@@ -3,6 +3,7 @@
 // 该文件实现了网络通信模块的占位页面。
 
 import 'package:flutter/material.dart';
+import '../../services/status_bar_service.dart';
 
 /// 网络通信视图组件
 ///
@@ -13,6 +14,7 @@ class NetworkView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    StatusBarService().update(2, const StatusBarInfo(text: '网络通信 — 功能开发中'));
 
     return Center(
       child: ConstrainedBox(

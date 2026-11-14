@@ -16,7 +16,7 @@ CloveCom 是一个基于 Flutter 的 Windows 桌面通信助手。项目面向�
 - 桌面端基础应用框架、Material 3 主题和顶部模块导航。
 - 串口通信主流程：串口枚举、参数配置、连接/断开、收发数据、消息日志、统计信息和错误提示。
 - 串口高级收发能力：文本/HEX 发送、HEX 显示、追加 CR/LF、循环发送、接收隐藏、自动滚动、保存日志。
-- 文件传输与固件升级：支持普通分包发送、Ymodem-1K 协议、自定义 Dart 升级脚本。
+- 文件传输使用 Ymodem-1K；固件升级使用可编辑的 Lua 交互协议，预置点表与标准 YMODEM 脚本。
 - 通信协议抽象：通过 `TransferProtocol` 和 `ProtocolRegistry` 注册可用传输协议。
 - 工具箱模块：HEX 转 BIN、BIN 编辑、BIN 拼接、文件拖拽/选择导入、HEX/ASCII 预览。
 - Windows 发布流水线：支持 Enigma Virtual Box 单文件打包和 Inno Setup 安装向导。
@@ -109,7 +109,7 @@ lib/
 
 - 数据发送：发送文本或 HEX 输入。
 - 文件发送：选择任意文件，通过协议层按配置发送。
-- 固件升级：选择 `.bin` 固件，可使用默认分包发送，也可选择自定义 Dart 脚本驱动升级流程。
+- 固件升级：选择 `.bin` 固件，选择在协议编辑页保存的 Lua 交互协议后自动载入一次，再执行升级。分块、超时和重试参数均在脚本中配置。
 
 固件脚本通过 JSON 行协议和主进程交互：
 
@@ -124,13 +124,11 @@ lib/
 lib/protocols/
 ├── transfer_protocol.dart     # 协议接口和回调定义
 ├── protocol_registry.dart     # 协议注册表
-├── raw_packet_protocol.dart   # 普通分包发送
 └── ymodem_protocol.dart       # Ymodem-1K
 ```
 
 当前已注册协议：
 
-- 分包发送：按固定包大小和间隔直接写入串口，适合简单透传。
 - Ymodem-1K：实现文件名包、1024 字节数据包、CRC-16/XMODEM 校验、ACK 等待和 EOT 结束流程，适合支持 Ymodem 的嵌入式设备。
 
 新增协议时，实现 `TransferProtocol` 并在 `ProtocolRegistry` 注册即可。
@@ -250,7 +248,7 @@ powershell -ExecutionPolicy Bypass -File test/inno_setup_release_test.ps1
 
 ```text
 assets/
-└── scripts/                          # 可随应用打包的脚本资源
+└── protocols/                        # Lua 交互协议示例
 
 docs/superpowers/
 ├── specs/                            # 功能设计文档
