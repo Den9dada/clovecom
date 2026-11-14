@@ -8,6 +8,7 @@ class BinLinkMinimap extends StatelessWidget {
     required this.segments,
     required this.previewBaseAddress,
     required this.previewEndAddress,
+    required this.layoutRevision,
     this.scrollRatio = 0,
     this.viewportRatio = 1,
     this.width = 28,
@@ -16,6 +17,7 @@ class BinLinkMinimap extends StatelessWidget {
   final List<BinLinkSegment> segments;
   final int previewBaseAddress;
   final int previewEndAddress;
+  final int layoutRevision;
   final double scrollRatio;
   final double viewportRatio;
   final double width;
@@ -74,6 +76,7 @@ class BinLinkMinimap extends StatelessWidget {
                     segments: segments,
                     previewBaseAddress: previewBaseAddress,
                     previewEndAddress: previewEndAddress,
+                    layoutRevision: layoutRevision,
                     scrollRatio: scrollRatio,
                     viewportRatio: viewportRatio,
                     bgColor: cs.surfaceContainerLow,
@@ -94,6 +97,7 @@ class _MinimapPainter extends CustomPainter {
     required this.segments,
     required this.previewBaseAddress,
     required this.previewEndAddress,
+    required this.layoutRevision,
     required this.scrollRatio,
     required this.viewportRatio,
     required this.bgColor,
@@ -103,6 +107,7 @@ class _MinimapPainter extends CustomPainter {
   final List<BinLinkSegment> segments;
   final int previewBaseAddress;
   final int previewEndAddress;
+  final int layoutRevision;
   final double scrollRatio;
   final double viewportRatio;
   final Color bgColor;
@@ -170,7 +175,7 @@ class _MinimapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MinimapPainter old) =>
-      segments != old.segments ||
+      layoutRevision != old.layoutRevision ||
       previewBaseAddress != old.previewBaseAddress ||
       previewEndAddress != old.previewEndAddress ||
       scrollRatio != old.scrollRatio ||

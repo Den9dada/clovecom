@@ -253,6 +253,7 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
                             previewBaseAddress: viewModel.previewBaseAddress,
                             previewEndAddress: previewEnd,
                             overlappingPairs: viewModel.overlappingPairs,
+                            layoutRevision: viewModel.layoutRevision,
                           ),
                         ),
                         const Divider(height: 1),
@@ -290,6 +291,7 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
                                 previewBaseAddress:
                                     viewModel.previewBaseAddress,
                                 previewEndAddress: previewEnd,
+                                layoutRevision: viewModel.layoutRevision,
                                 scrollRatio: _scrollRatio,
                                 viewportRatio: _viewportRatio,
                               ),
@@ -399,6 +401,7 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
                         previewBaseAddress: viewModel.previewBaseAddress,
                         previewEndAddress: previewEnd,
                         overlappingPairs: viewModel.overlappingPairs,
+                        layoutRevision: viewModel.layoutRevision,
                       ),
                     ),
                     const SizedBox(height: 8),

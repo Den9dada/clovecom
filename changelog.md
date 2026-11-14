@@ -30,6 +30,14 @@
 - 验证：改动目录 `flutter analyze` 零问题；串口服务＋固件视图 34 测试全绿；全套 185 通过／13 既有失败（经基线复核非本轨道引入）。
 - 待续（strangler 下一增量）：C5 接收管线 isolate 化＋事件驱动 `WaitCommEvent`（当前为主 isolate 10ms 轮询＋同步 FFI 阻塞≤100ms），需独立 FFI 重写与契约测试（通知≤20Hz／吞吐≥波特率／零 UI 阻塞），按 ADR-0001 渐进推进，不在本次一次性重写。
 
+### refactor: 轨道 C 工具箱性能（C6 查表 CRC＋C7 布局重绘令牌）
+
+- 前提复核：调研确认 BIN 编辑文档的 `BinEditOperation` 编辑历史、导出重定保存基线（`markSaved`）、revision/dirty 均已存在；`EditBuffer` 字节差量为零引用零测试的死代码。故 C4 不是“补历史/重定基”，真正剩余的只是差量存储取舍，本次不动编辑文档语义。
+- C6 `CrcCalculator` 深化为查表深模块：对外 `calculate(data, params)` 接口不变，width>=8 走按 (width, poly, refin) 缓存的 256 项查表（每字节一次查表，约 8x 于逐位），width<8 保留逐位；空数据分支与 refout/xorout 后处理严格保持原语义。段 CRC 与每次规划的全量输出 CRC 同受其益。新增 23 项查表/逐位独立 oracle 对拍测试（覆盖全部 21 预设＋自定义 width>=8 参数＋7 种数据模式），连同原有 13 项已知向量全绿。
+- C7 拼接布局重绘令牌：`BinLinkViewModel` 新增 `layoutRevision`，仅在 `_refreshPreview()`（规划真正变化）自增；改名/清错误/无效输入失败不自增。`_MinimapPainter`/`_SegmentLayoutPainter` 的 `shouldRepaint` 改用 O(1) 令牌比较，取代此前因 `segments` getter 每次返回新 `List.unmodifiable`、layout 每次新建 `enabled` 列表而恒为真的 List 身份比较——布局/小地图不再随无关重建（改名、滚动、另一工具编辑）无效重绘。新增 5 项修订号语义测试。
+- 验证：改动文件 `dart analyze` 零问题；CRC＋拼接 45 测试全绿；整个工具箱目录 91 测试全绿，零回归。
+- 待续（strangler 下一增量）：C6 拼接输出惰性化＋相对化布局＋`crc32_combine`/填充闭式合成（当前每次规划 `List.filled(end)` 全量分配＋全量重算 CRC，高地址固件会放大分配；`previewBytes` 被 HEX 预览消费，惰性化需改查看器数据契约）；C7 HEX 查看器通知域细分（根内容 `context.watch` 致编辑单字节整树重建，宜用 Selector）；C4 `EditBuffer` 差量存储取舍（采用或删除死代码）。均按 ADR-0001 渐进推进。
+
 ## 2026-10-18
 
 ### fix: 消除协议切换时接口参数框闪动

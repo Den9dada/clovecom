@@ -13,8 +13,13 @@ class BinLinkViewModel extends ChangeNotifier {
   int _fillByte = 0xFF;
   BinLinkResult _preview = const BinLinkResult(baseAddress: 0, bytes: <int>[]);
   String? _lastError;
+  // 布局修订号：仅在规划真正变化（_refreshPreview）时自增。
+  // painter 用它做 O(1) 重绘判定，取代脆弱的 List 身份比较；
+  // 改名/清错误等不影响布局几何的通知不会触发布局重绘。
+  int _layoutRevision = 0;
 
   List<BinLinkSegment> get segments => List.unmodifiable(_segments);
+  int get layoutRevision => _layoutRevision;
   int get fillByte => _fillByte;
   String get fillByteHex => HexTextParser.formatHexByte(_fillByte);
   List<int> get previewBytes => _preview.bytes;
@@ -221,6 +226,7 @@ class BinLinkViewModel extends ChangeNotifier {
   void _refreshPreview() {
     _preview = BinLinkService.plan(_segments, fillByte: _fillByte);
     _lastError = null;
+    _layoutRevision++;
     notifyListeners();
   }
 

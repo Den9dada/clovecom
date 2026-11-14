@@ -9,6 +9,7 @@ class BinLinkSegmentLayout extends StatelessWidget {
     required this.previewBaseAddress,
     required this.previewEndAddress,
     required this.overlappingPairs,
+    required this.layoutRevision,
     this.onScrollTo,
   });
 
@@ -16,6 +17,7 @@ class BinLinkSegmentLayout extends StatelessWidget {
   final int previewBaseAddress;
   final int previewEndAddress;
   final List<({int i, int j})> overlappingPairs;
+  final int layoutRevision;
   final void Function(int address)? onScrollTo;
 
   static const _palette = [
@@ -101,6 +103,7 @@ class BinLinkSegmentLayout extends StatelessWidget {
                       baseAddress: previewBaseAddress,
                       endAddress: previewEndAddress,
                       overlappingPairs: overlappingPairs,
+                      layoutRevision: layoutRevision,
                       bgColor: cs.surface,
                       textColor: cs.onSurface,
                       subtleColor: cs.onSurfaceVariant,
@@ -123,6 +126,7 @@ class _SegmentLayoutPainter extends CustomPainter {
     required this.baseAddress,
     required this.endAddress,
     required this.overlappingPairs,
+    required this.layoutRevision,
     required this.bgColor,
     required this.textColor,
     required this.subtleColor,
@@ -133,6 +137,7 @@ class _SegmentLayoutPainter extends CustomPainter {
   final int baseAddress;
   final int endAddress;
   final List<({int i, int j})> overlappingPairs;
+  final int layoutRevision;
   final Color bgColor;
   final Color textColor;
   final Color subtleColor;
@@ -248,8 +253,7 @@ class _SegmentLayoutPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SegmentLayoutPainter old) =>
-      segments != old.segments ||
+      layoutRevision != old.layoutRevision ||
       baseAddress != old.baseAddress ||
-      endAddress != old.endAddress ||
-      overlappingPairs != old.overlappingPairs;
+      endAddress != old.endAddress;
 }
