@@ -185,8 +185,18 @@ class _BinLinkToolContent extends StatefulWidget {
 }
 
 class _BinLinkToolContentState extends State<_BinLinkToolContent> {
-  double _scrollRatio = 0;
-  double _viewportRatio = 1;
+  // 滚动域：仅小地图指示器订阅。滚动不再 setState 触发整树重建，
+  // 也不混入规划域（layoutRevision）的重建判定。
+  final _scrollViewport = ValueNotifier<({double scroll, double viewport})>((
+    scroll: 0,
+    viewport: 1,
+  ));
+
+  @override
+  void dispose() {
+    _scrollViewport.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -201,266 +211,203 @@ class _BinLinkToolContentState extends State<_BinLinkToolContent> {
     );
   }
 
-  Widget _buildWide(BuildContext context) {
-    final viewModel = context.watch<BinLinkViewModel>();
-    final previewEnd = viewModel.previewEndAddress;
+  /// 工具栏域：只依赖填充值与可导出性；改名/清错误/滚动不重建。
+  Widget _buildToolBar(BuildContext context) {
+    return Selector<BinLinkViewModel, ({int fillByte, bool canExport})>(
+      selector: (_, vm) => (fillByte: vm.fillByte, canExport: vm.canExport),
+      builder: (context, data, _) => BinLinkToolBar(
+        fillByte: data.fillByte,
+        canExport: data.canExport,
+        onImportBin: widget.onImportBin,
+        onAddHexSegment: () => _showAddHexDialog(context),
+        onAutoArrange: () {
+          context.read<BinLinkViewModel>().autoArrange();
+          _showError(context);
+        },
+        onCheckConflicts: () {
+          final vm = context.read<BinLinkViewModel>();
+          final msg = vm.checkConflicts();
+          if (context.mounted) {
+            showDsToast(
+              msg,
+              kind: vm.hasConflicts
+                  ? DsToastKind.warning
+                  : DsToastKind.success,
+            );
+          }
+        },
+        onExport: () async {
+          await context.read<BinLinkViewModel>().exportLinked();
+          if (context.mounted) _showError(context);
+        },
+        onFillByteChanged: (value) {
+          if (value == -1) {
+            widget.onCustomFill();
+          } else {
+            context.read<BinLinkViewModel>().setFillByteValue(value);
+          }
+        },
+      ),
+    );
+  }
 
-    return Stack(
-      children: [
-        Column(
+  /// 规划域：布局＋HEX 预览＋小地图数据只依赖 layoutRevision，
+  /// 改名/清错误不重建；builder 内 read 取规划快照（段实例几何不变，
+  /// painter 不画名字，改名无需重绘）。
+  Widget _buildPlanCluster(BuildContext context, {required bool compact}) {
+    return Selector<BinLinkViewModel, int>(
+      selector: (_, vm) => vm.layoutRevision,
+      builder: (context, revision, _) {
+        final vm = context.read<BinLinkViewModel>();
+        final layout = BinLinkSegmentLayout(
+          segments: vm.segments,
+          previewBaseAddress: vm.previewBaseAddress,
+          previewEndAddress: vm.previewEndAddress,
+          overlappingPairs: vm.overlappingPairs,
+          layoutRevision: revision,
+        );
+        if (compact) {
+          return Column(
+            children: [
+              SizedBox(height: 80, child: layout),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 300,
+                child: HexAsciiViewer(
+                  bytes: vm.previewBytes,
+                  baseAddress: vm.previewBaseAddress,
+                ),
+              ),
+            ],
+          );
+        }
+        return Column(
           children: [
-            BinLinkToolBar(
-              fillByte: viewModel.fillByte,
-              canExport: viewModel.canExport,
-              onImportBin: widget.onImportBin,
-              onAddHexSegment: () => _showAddHexDialog(context),
-              onAutoArrange: () {
-                context.read<BinLinkViewModel>().autoArrange();
-                _showError(context);
-              },
-              onCheckConflicts: () {
-                final vm = context.read<BinLinkViewModel>();
-                final msg = vm.checkConflicts();
-                if (context.mounted) {
-                  showDsToast(
-                    msg,
-                    kind: vm.hasConflicts
-                        ? DsToastKind.warning
-                        : DsToastKind.success,
-                  );
-                }
-              },
-              onExport: () async {
-                await context.read<BinLinkViewModel>().exportLinked();
-                if (context.mounted) _showError(context);
-              },
-              onFillByteChanged: (value) {
-                if (value == -1) {
-                  widget.onCustomFill();
-                } else {
-                  context.read<BinLinkViewModel>().setFillByteValue(value);
-                }
-              },
-            ),
+            Expanded(flex: 1, child: layout),
+            const Divider(height: 1),
             Expanded(
+              flex: 4,
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(width: 340, child: BinLinkSegmentList()),
-                  const SizedBox(width: 8),
                   Expanded(
-                    child: Column(
-                      children: [
-                        Expanded(
-                          flex: 1,
-                          child: BinLinkSegmentLayout(
-                            segments: viewModel.segments,
-                            previewBaseAddress: viewModel.previewBaseAddress,
-                            previewEndAddress: previewEnd,
-                            overlappingPairs: viewModel.overlappingPairs,
-                            layoutRevision: viewModel.layoutRevision,
-                          ),
-                        ),
-                        const Divider(height: 1),
-                        Expanded(
-                          flex: 4,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: HexAsciiViewer(
-                                  bytes: viewModel.previewBytes,
-                                  baseAddress: viewModel.previewBaseAddress,
-                                  onScrollChanged: (offset, max) {
-                                    setState(() {
-                                      // 计算滚动比例：当前可视区域顶部在整个内容中的位置
-                                      final totalContent =
-                                          max + _viewerHeightEstimate(context);
-                                      _scrollRatio = totalContent > 0
-                                          ? (offset / totalContent).clamp(
-                                              0.0,
-                                              1.0,
-                                            )
-                                          : 0.0;
-                                      // 可视区域占比
-                                      _viewportRatio = totalContent > 0
-                                          ? (_viewerHeightEstimate(context) /
-                                                    totalContent)
-                                                .clamp(0.0, 1.0)
-                                          : 1.0;
-                                    });
-                                  },
-                                ),
-                              ),
-                              BinLinkMinimap(
-                                segments: viewModel.segments,
-                                previewBaseAddress:
-                                    viewModel.previewBaseAddress,
-                                previewEndAddress: previewEnd,
-                                layoutRevision: viewModel.layoutRevision,
-                                scrollRatio: _scrollRatio,
-                                viewportRatio: _viewportRatio,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    child: HexAsciiViewer(
+                      bytes: vm.previewBytes,
+                      baseAddress: vm.previewBaseAddress,
+                      onScrollChanged: _onViewerScroll,
+                    ),
+                  ),
+                  // 滚动域：小地图指示器单独订阅滚动比例，
+                  // 不随规划域重建，也不触发整树重建。
+                  ValueListenableBuilder<({double scroll, double viewport})>(
+                    valueListenable: _scrollViewport,
+                    builder: (context, sv, _) => BinLinkMinimap(
+                      segments: vm.segments,
+                      previewBaseAddress: vm.previewBaseAddress,
+                      previewEndAddress: vm.previewEndAddress,
+                      layoutRevision: revision,
+                      scrollRatio: sv.scroll,
+                      viewportRatio: sv.viewport,
                     ),
                   ),
                 ],
               ),
             ),
           ],
-        ),
-        if (widget.dragging)
-          Positioned.fill(
-            child: Container(
-              color: Theme.of(
-                context,
-              ).colorScheme.primaryContainer.withValues(alpha: 0.15),
-              alignment: Alignment.center,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.primary,
-                    width: 2,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.upload_file,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '拖放BIN文件到此处导入',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ],
-                ),
+        );
+      },
+    );
+  }
+
+  void _onViewerScroll(double offset, double max) {
+    final totalContent = max + _viewerHeightEstimate(context);
+    _scrollViewport.value = (
+      scroll: totalContent > 0 ? (offset / totalContent).clamp(0.0, 1.0) : 0.0,
+      viewport: totalContent > 0
+          ? (_viewerHeightEstimate(context) / totalContent).clamp(0.0, 1.0)
+          : 1.0,
+    );
+  }
+
+  Widget _buildWide(BuildContext context) {
+    return Stack(
+      children: [
+        Column(
+          children: [
+            _buildToolBar(context),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(width: 340, child: BinLinkSegmentList()),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildPlanCluster(context, compact: false)),
+                ],
               ),
             ),
-          ),
+          ],
+        ),
+        if (widget.dragging) _buildDragOverlay(context),
       ],
     );
   }
 
   Widget _buildCompact(BuildContext context) {
-    final viewModel = context.watch<BinLinkViewModel>();
-    final previewEnd = viewModel.previewEndAddress;
-
     return Stack(
       children: [
         Column(
           children: [
-            BinLinkToolBar(
-              fillByte: viewModel.fillByte,
-              canExport: viewModel.canExport,
-              onImportBin: widget.onImportBin,
-              onAddHexSegment: () => _showAddHexDialog(context),
-              onAutoArrange: () {
-                context.read<BinLinkViewModel>().autoArrange();
-                _showError(context);
-              },
-              onCheckConflicts: () {
-                final vm = context.read<BinLinkViewModel>();
-                final msg = vm.checkConflicts();
-                if (context.mounted) {
-                  showDsToast(
-                    msg,
-                    kind: vm.hasConflicts
-                        ? DsToastKind.warning
-                        : DsToastKind.success,
-                  );
-                }
-              },
-              onExport: () async {
-                await context.read<BinLinkViewModel>().exportLinked();
-                if (context.mounted) _showError(context);
-              },
-              onFillByteChanged: (value) {
-                if (value == -1) {
-                  widget.onCustomFill();
-                } else {
-                  context.read<BinLinkViewModel>().setFillByteValue(value);
-                }
-              },
-            ),
+            _buildToolBar(context),
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
                   children: [
                     const BinLinkSegmentList(),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      height: 80,
-                      child: BinLinkSegmentLayout(
-                        segments: viewModel.segments,
-                        previewBaseAddress: viewModel.previewBaseAddress,
-                        previewEndAddress: previewEnd,
-                        overlappingPairs: viewModel.overlappingPairs,
-                        layoutRevision: viewModel.layoutRevision,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 300,
-                      child: HexAsciiViewer(
-                        bytes: viewModel.previewBytes,
-                        baseAddress: viewModel.previewBaseAddress,
-                      ),
-                    ),
+                    _buildPlanCluster(context, compact: true),
                   ],
                 ),
               ),
             ),
           ],
         ),
-        if (widget.dragging)
-          Positioned.fill(
-            child: Container(
-              color: Theme.of(
-                context,
-              ).colorScheme.primaryContainer.withValues(alpha: 0.15),
-              alignment: Alignment.center,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.primary,
-                    width: 2,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.upload_file,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '拖放BIN文件到此处导入',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ],
-                ),
-              ),
+        if (widget.dragging) _buildDragOverlay(context),
+      ],
+    );
+  }
+
+  Widget _buildDragOverlay(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: 0.15),
+        alignment: Alignment.center,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary,
+              width: 2,
             ),
           ),
-      ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.upload_file,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '拖放BIN文件到此处导入',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:clovecom/utils/file_picker_compat.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../models/toolbox/bin_file_entry.dart';
 import '../../../services/status_bar_service.dart';
 import '../toolbox_tool_registry.dart';
 import '../../../ui/widgets/ds_toast.dart';
@@ -141,17 +142,30 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = context.watch<BinEditorViewModel>();
-    final viewer = HexAsciiViewer(
-      key: ValueKey(viewModel.activeFile),
-      bytes: viewModel.bytes,
-      onByteChanged: (index, value) {
-        context.read<BinEditorViewModel>().replaceByte(
-          index,
-          value.toRadixString(16).padLeft(2, '0'),
-        );
-        _showError(context);
-      },
+    // 通知域细分：工具栏只依赖 hasFile；查看器只依赖内容域
+    // （file/bytes 身份，清错误/无关通知不重建）；控制区域合法依赖
+    // 编辑历史与脏标记，局部 watch 而非整树 watch。
+    final toolbar = Selector<BinEditorViewModel, bool>(
+      selector: (_, vm) => vm.hasFile,
+      builder: (context, hasFile, _) => _buildToolBar(context, hasFile),
+    );
+    final viewer =
+        Selector<BinEditorViewModel, ({BinFileEntry? file, List<int> bytes})>(
+      selector: (_, vm) => (file: vm.activeFile, bytes: vm.bytes),
+      builder: (context, data, _) => HexAsciiViewer(
+        key: ValueKey(data.file),
+        bytes: data.bytes,
+        onByteChanged: (index, value) {
+          context.read<BinEditorViewModel>().replaceByte(
+            index,
+            value.toRadixString(16).padLeft(2, '0'),
+          );
+          _showError(context);
+        },
+      ),
+    );
+    final controls = Consumer<BinEditorViewModel>(
+      builder: (context, vm, _) => _buildControls(context, vm),
     );
 
     return LayoutBuilder(
@@ -161,12 +175,12 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
           children: [
             Column(
               children: [
-                _buildToolBar(context, viewModel),
+                toolbar,
                 Expanded(
                   child: compact
                       ? Column(
                           children: [
-                            Expanded(child: _buildControls(context, viewModel)),
+                            Expanded(child: controls),
                             const SizedBox(height: 8),
                             Expanded(child: viewer),
                           ],
@@ -174,10 +188,7 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(
-                              width: 320,
-                              child: _buildControls(context, viewModel),
-                            ),
+                            SizedBox(width: 320, child: controls),
                             const SizedBox(width: 8),
                             Expanded(child: viewer),
                           ],
@@ -192,7 +203,7 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
     );
   }
 
-  Widget _buildToolBar(BuildContext context, BinEditorViewModel viewModel) {
+  Widget _buildToolBar(BuildContext context, bool hasFile) {
     final cs = Theme.of(context).colorScheme;
 
     return Container(
@@ -215,7 +226,7 @@ class _BinEditorToolContentState extends State<_BinEditorToolContent> {
           ),
           const SizedBox(width: 8),
           FilledButton.icon(
-            onPressed: viewModel.hasFile
+            onPressed: hasFile
                 ? () async {
                     await context.read<BinEditorViewModel>().exportEdited();
                     if (context.mounted) _showError(context);

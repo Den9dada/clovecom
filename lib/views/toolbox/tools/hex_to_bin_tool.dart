@@ -122,6 +122,9 @@ class _HexToBinToolState extends State<HexToBinTool>
   }
 }
 
+/// 工具栏的导出能力域：四个按钮的可用性，与文件内容通知无关。
+typedef _ExportCaps = ({bool bin, bool hex, bool batchBin, bool batchHex});
+
 class _HexToBinToolContent extends StatelessWidget {
   const _HexToBinToolContent({required this.dragging, required this.onImport});
 
@@ -130,10 +133,30 @@ class _HexToBinToolContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = context.watch<HexToBinViewModel>();
-    final viewer = HexAsciiViewer(
-      bytes: viewModel.selectedBytes,
-      baseAddress: viewModel.selectedBaseAddress,
+    // 通知域细分：工具栏只依赖导出能力；查看器只依赖内容域
+    // （bytes/baseAddress，清错误/无关通知不重建）；控制区域局部 watch。
+    final toolbar = Selector<HexToBinViewModel, _ExportCaps>(
+      selector: (_, vm) => (
+        bin: vm.canExportCurrentBin,
+        hex: vm.canExportCurrentHex,
+        batchBin: vm.canExportBatchBin,
+        batchHex: vm.canExportBatchHex,
+      ),
+      builder: (context, caps, _) => _buildToolBar(context, caps),
+    );
+    final viewer =
+        Selector<HexToBinViewModel, ({List<int> bytes, int baseAddress})>(
+      selector: (_, vm) => (
+        bytes: vm.selectedBytes,
+        baseAddress: vm.selectedBaseAddress,
+      ),
+      builder: (context, data, _) => HexAsciiViewer(
+        bytes: data.bytes,
+        baseAddress: data.baseAddress,
+      ),
+    );
+    final controls = Consumer<HexToBinViewModel>(
+      builder: (context, vm, _) => _buildControls(context, vm),
     );
 
     return LayoutBuilder(
@@ -143,12 +166,12 @@ class _HexToBinToolContent extends StatelessWidget {
           children: [
             Column(
               children: [
-                _buildToolBar(context, viewModel),
+                toolbar,
                 Expanded(
                   child: compact
                       ? Column(
                           children: [
-                            Expanded(child: _buildControls(context, viewModel)),
+                            Expanded(child: controls),
                             const SizedBox(height: 8),
                             Expanded(child: viewer),
                           ],
@@ -156,10 +179,7 @@ class _HexToBinToolContent extends StatelessWidget {
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(
-                              width: 320,
-                              child: _buildControls(context, viewModel),
-                            ),
+                            SizedBox(width: 320, child: controls),
                             const SizedBox(width: 8),
                             Expanded(child: viewer),
                           ],
@@ -174,7 +194,7 @@ class _HexToBinToolContent extends StatelessWidget {
     );
   }
 
-  Widget _buildToolBar(BuildContext context, HexToBinViewModel viewModel) {
+  Widget _buildToolBar(BuildContext context, _ExportCaps caps) {
     final cs = Theme.of(context).colorScheme;
     final btnStyle = FilledButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
@@ -204,7 +224,7 @@ class _HexToBinToolContent extends StatelessWidget {
           const SizedBox(width: 8),
           // HEX → BIN
           FilledButton.icon(
-            onPressed: viewModel.canExportCurrentBin
+            onPressed: caps.bin
                 ? () async {
                     await context.read<HexToBinViewModel>().exportCurrent();
                     if (context.mounted) _showError(context);
@@ -217,7 +237,7 @@ class _HexToBinToolContent extends StatelessWidget {
           const SizedBox(width: 8),
           // BIN → HEX
           FilledButton.icon(
-            onPressed: viewModel.canExportCurrentHex
+            onPressed: caps.hex
                 ? () => _showHexExportDialog(context)
                 : null,
             icon: const Icon(Icons.code_outlined, size: 20),
@@ -226,7 +246,7 @@ class _HexToBinToolContent extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           OutlinedButton.icon(
-            onPressed: viewModel.canExportBatchBin
+            onPressed: caps.batchBin
                 ? () async {
                     await context.read<HexToBinViewModel>().exportBatch();
                     if (context.mounted) _showError(context);
@@ -238,7 +258,7 @@ class _HexToBinToolContent extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           OutlinedButton.icon(
-            onPressed: viewModel.canExportBatchHex
+            onPressed: caps.batchHex
                 ? () => _showHexExportDialog(context, batch: true)
                 : null,
             icon: const Icon(Icons.drive_folder_upload_outlined, size: 20),

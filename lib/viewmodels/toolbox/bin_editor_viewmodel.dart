@@ -28,7 +28,9 @@ class BinEditorViewModel extends ChangeNotifier {
   bool get hasFile => activeFile != null;
   String get fileName => activeFile?.name ?? '';
   String get filePath => activeFile?.path ?? '';
-  List<int> get bytes => activeFile?.currentBytes ?? <int>[];
+  // 空态返回规范化 const 空列表：保证 bytes 身份仅在内容真正变化时改变，
+  // 供查看器域的 Selector 做廉价相等判定。
+  List<int> get bytes => activeFile?.currentBytes ?? const <int>[];
   bool get hasUnsavedChanges =>
       _files.any((f) => f.hasUnsavedChanges) ||
       (activeFile?.hasUnsavedChanges ?? false);

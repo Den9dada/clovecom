@@ -24,7 +24,9 @@ class HexToBinViewModel extends ChangeNotifier {
     return _entries[_selectedIndex];
   }
 
-  List<int> get selectedBytes => selectedEntry?.bytes ?? <int>[];
+  // 空态返回规范化 const 空列表：保证 selectedBytes 身份仅随选中条目变化，
+  // 供查看器域的 Selector 做廉价相等判定。
+  List<int> get selectedBytes => selectedEntry?.bytes ?? const <int>[];
   int get selectedBaseAddress => selectedEntry?.baseAddress ?? 0;
   bool get canExportCurrent => selectedEntry?.canExport ?? false;
   bool get canExportCurrentBin => selectedEntry?.canExportBin ?? false;

@@ -51,6 +51,13 @@
 - `StatusBarService` 工具箱状态由 int 槽键控改为 String id 键控：`updateToolboxStatus(toolId, info)` 缓存各工具状态，`setActiveToolboxTool(toolId)` 由 toolbox 页 tab 切换驱动；仅活跃工具的状态投影到主 tab 状态栏（`_toolboxTabIndex` 常量化），非活跃更新不覆盖、切换即取缓存。id 唯一来源在注册表，状态栏模块不再知晓具体槽位号。
 - 验证：改动文件 `dart analyze` 零问题；新增 5 项注册表/状态栏序列契约测试（槽位互异、idAt/slotOf 往返、未知 id/越界、活跃投影与非活跃缓存）；工具箱目录 92 测试全绿（含既有 tab 标题断言），零回归。
 
+### refactor: 轨道 C 性能（C7 HEX 查看器通知域细分）
+
+- 三个工具（BIN 编辑/HEX 转换/BIN 拼接）的根内容 `context.watch` 整树订阅改为按域 Selector：工具栏只依赖能力域（hasFile／四个导出能力／填充值＋可导出性），查看器只依赖内容域（file/bytes 身份记录），控制区域（状态/历史/文件列表）局部 Consumer。编辑单字节不再重建工具栏；清错误/改名不再重建查看器与布局。
+- BIN 拼接的滚动指示器从 `setState` 整树重建改为 `ValueNotifier` 滚动域，仅小地图订阅；规划域（布局＋HEX 预览＋小地图数据）整体只依赖 `layoutRevision`，builder 内 read 取规划快照（painter 不画段名，改名无需重绘）。
+- 两个 VM 的空态 bytes getter 规范化为 `const <int>[]`，保证查看器域 Selector 的相等判定廉价且身份稳定（内容不变则不重建）。
+- 验证：改动文件 `dart analyze` 零问题；新增 9 项内容域身份契约测试（空态身份、相同内容编辑早退、清错误/改名/重复选中不换身份、真实编辑/切换条目/规划变更换身份）；工具箱目录 101 测试全绿，零回归。
+
 ## 2026-10-18
 
 ### fix: 消除协议切换时接口参数框闪动
