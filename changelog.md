@@ -72,6 +72,13 @@
 - 诚实说明：收益为结构性（去除 O(end) CRC 扫描），未做运行时 profiling；稠密低地址镜像 originalSize≈end，合成开销与扫描相当；分配主导成本（`List.filled(end)` 双份拷贝）由待续的惰性化/相对化解决。
 - 待续（strangler 下一增量）：C6 拼接输出惰性化（需改 HEX 查看器数据契约）＋相对化布局（改导出语义，需先定域）。
 
+### docs: C5 接收管线 isolate 化调研定稿（硬件验证门槛）
+
+- 后台调研结论：`WaitCommEvent`/`SetCommMask` 等 13 个符号在 package:win32 6.4.0 齐全（此前“缺失”仅是仓库零使用）；`HANDLE` 是 `Pointer` 的 extension type，跨 isolate 发送 address（int）后在 isolate 内重建可行；主 isolate 保留写/控制，isolate 内重建读循环。
+- 渐进计划（ADR-0001）：增量 A＝读循环移 isolate、保留 10ms 轮询、`ReceivePort` 单订阅桥接保持 `Stream<Uint8List>` 接口（上层 VM/4 个 fake 零改动，可独立验证）；增量 B＝isolate 内 `WaitCommEvent` 事件驱动＋stop 事件关闭协议（EV_RXCHAR 兼容性需实测）；大改（独立 session）＝写路径与逐 chunk 格式化移 isolate。
+- 关键风险：close 须 stop→`CancelIoEx`→等完成→`CloseHandle`，跨 isolate HANDLE 生命周期存在竞态；真实传输路径零单测、需真机回归。
+- 决策：本环境无串口硬件，无法对正在工作的读循环做真机回归。按 ADR-0001 与“先核对最新构建再改方案”守则，不在无硬件验证下替换工作路径——C5 作为需真机验证的独立 session 推进，计划与风险已就绪，未改任何串口代码。
+
 ## 2026-10-18
 
 ### fix: 消除协议切换时接口参数框闪动
