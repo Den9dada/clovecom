@@ -64,6 +64,14 @@
 - 验证：`dart analyze lib/services/toolbox/` 零问题；工具箱目录 101 测试全绿，零回归。
 - 附带发现（未动，登记待续）：`BinLinkStatusBar` widget 零引用（拼接工具的状态信息走应用级状态栏），属同类死代码，留待下一增量一并清理。
 
+### refactor: 轨道 C 性能（C6 crc32_combine＋填充闭式合成）
+
+- 新增 `crc32_combine.dart` 深模块：接口为“按输出顺序的游程列表 → 整图标准 CRC-32”；实现为 GF(2) 矩阵幂（zlib crc32_combine 同款；init==xorout==0xFFFFFFFF 时可直接对最终 CRC 值合成，无需还原初值）＋填充游程闭式倍增 O(log n)。通过 deletion test：删除则退回全量扫描，GF(2) 复杂度集中于单一可测模块。
+- `BinLinkService.plan` 的输出 CRC 改由段 CRC＋填充游程合成，取代对完整输出的 O(end) 全量扫描；高地址稀疏镜像收益显著（仅扫描 O(originalSize) 段数据＋O(段数×log) 合成）。输出字节仍物化供 HEX 预览消费（查看器数据契约不变）。
+- 验证：改动文件 `dart analyze` 零问题；新增 6 项 oracle 对拍测试（空/单游程、填充闭式 24 组、随机布局 200 组、高地址稀疏、plan 集成 50 组），合成结果与“物化后全量扫描”逐位一致；工具箱目录 107 测试全绿，零回归。
+- 诚实说明：收益为结构性（去除 O(end) CRC 扫描），未做运行时 profiling；稠密低地址镜像 originalSize≈end，合成开销与扫描相当；分配主导成本（`List.filled(end)` 双份拷贝）由待续的惰性化/相对化解决。
+- 待续（strangler 下一增量）：C6 拼接输出惰性化（需改 HEX 查看器数据契约）＋相对化布局（改导出语义，需先定域）。
+
 ## 2026-10-18
 
 ### fix: 消除协议切换时接口参数框闪动

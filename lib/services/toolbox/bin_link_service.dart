@@ -1,5 +1,6 @@
 import '../../models/toolbox/bin_link_segment.dart';
 import '../../models/toolbox/crc_params.dart';
+import 'crc32_combine.dart';
 import 'crc_calculator.dart';
 
 /// 同一次规划的布局、诊断、统计与输出，冲突时没有旧输出。
@@ -110,10 +111,31 @@ class BinLinkService {
         entry.value.bytes,
       );
     }
+    // 输出 CRC 由段 CRC 与填充游程闭式合成（O(段数×log)），
+    // 取代对完整输出的 O(end) 全量扫描；高地址稀疏镜像收益显著。
+    // 输出字节仍物化供 HEX 预览消费（查看器数据契约不变）。
+    final runs = <Crc32Run>[];
+    var cursor = 0;
+    for (final entry in sorted) {
+      final addr = entry.value.address;
+      if (addr > cursor) {
+        runs.add(Crc32FillRun(byte: fillByte, length: addr - cursor));
+      }
+      runs.add(
+        Crc32DataRun(
+          crc: computeSegmentCrc(entry.value.bytes),
+          length: entry.value.bytes.length,
+        ),
+      );
+      cursor = addr + entry.value.bytes.length;
+    }
+    if (end > cursor) {
+      runs.add(Crc32FillRun(byte: fillByte, length: end - cursor));
+    }
     return BinLinkResult(
       baseAddress: 0,
       bytes: List.unmodifiable(bytes),
-      outputCrc32: computeOutputCrc(bytes),
+      outputCrc32: synthesizeCrc32(runs),
       paddingBytes: end - originalSize,
       enabledCount: sorted.length,
       originalSize: originalSize,
