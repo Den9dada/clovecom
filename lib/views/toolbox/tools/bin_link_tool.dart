@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../services/status_bar_service.dart';
+import '../toolbox_tool_registry.dart';
 import '../../../ui/widgets/ds_toast.dart';
 import '../../../ui/widgets/ds_widgets.dart';
 import '../../../viewmodels/toolbox/bin_link_viewmodel.dart';
@@ -44,12 +45,16 @@ class _BinLinkToolState extends State<BinLinkTool>
   }
 
   void _updateStatus() {
-    StatusBarService().updateToolboxStatus(2, _buildStatus());
+    StatusBarService().updateToolboxStatus(
+      ToolboxToolRegistry.binLinkId,
+      _buildStatus(),
+    );
   }
 
   bool get _isCurrentTab {
     final controller = DefaultTabController.of(context);
-    return controller.index == 2;
+    return controller.index ==
+        ToolboxToolRegistry.slotOf(ToolboxToolRegistry.binLinkId);
   }
 
   @override

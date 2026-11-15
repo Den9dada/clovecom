@@ -99,7 +99,9 @@ class _ToolboxTabListenerState extends State<_ToolboxTabListener> {
 
   void _onTabChanged() {
     if (_tabController != null) {
-      StatusBarService().setActiveToolboxSubTab(_tabController!.index);
+      StatusBarService().setActiveToolboxTool(
+        ToolboxToolRegistry.idAt(_tabController!.index),
+      );
     }
   }
 

@@ -45,6 +45,12 @@
 - 验证：改动文件 `dart analyze` 零问题；串口服务目录 34 测试全绿（含 2 新测试）；全套 215 通过／13 失败，失败数与基线一致——12 个为 Lua 工作进程未随测试环境安装（`RuntimeUnavailable`）的环境性失败、1 个 interaction_editor 既有 spinner 计时失败，均非本轨道引入。
 - 待续（strangler 下一增量）：C8 工具箱入口描述符＋注册表分配槽位、状态栏按入口 id 键控（当前 `ToolboxToolDefinition` 无 id，4 工具各自硬编码槽位号与 `_isCurrentTab` 索引，`StatusBarService` 按 int 槽键控且工具箱固定 `_statuses[3]`，新增/插入工具需改≥3 处并顺延槽号）。按 ADR-0001 渐进推进。
 
+### refactor: 轨道 D 扩展性（C8 入口描述符＋注册表分配槽位＋状态栏 id 键控）
+
+- C8 把“工具箱入口是谁”的知识收拢到注册表单一来源：`ToolboxToolDefinition` 新增稳定 `id`（hexToBin/binEditor/binLink/crc 四个 const id 定义在 `ToolboxToolRegistry`），槽位不再硬编码——`slotOf(id)`/`idAt(slot)` 按列表位置分配与往返映射。4 个工具的 `_isCurrentTab` 与状态栏上报全部改从注册表取 id/槽位，新增或插入工具只需在列表加一项描述符，不再改≥3 处并顺延槽号（落实 ADR-0001“新增取值只改一处”）。
+- `StatusBarService` 工具箱状态由 int 槽键控改为 String id 键控：`updateToolboxStatus(toolId, info)` 缓存各工具状态，`setActiveToolboxTool(toolId)` 由 toolbox 页 tab 切换驱动；仅活跃工具的状态投影到主 tab 状态栏（`_toolboxTabIndex` 常量化），非活跃更新不覆盖、切换即取缓存。id 唯一来源在注册表，状态栏模块不再知晓具体槽位号。
+- 验证：改动文件 `dart analyze` 零问题；新增 5 项注册表/状态栏序列契约测试（槽位互异、idAt/slotOf 往返、未知 id/越界、活跃投影与非活跃缓存）；工具箱目录 92 测试全绿（含既有 tab 标题断言），零回归。
+
 ## 2026-10-18
 
 ### fix: 消除协议切换时接口参数框闪动

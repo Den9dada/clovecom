@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../models/toolbox/crc_params.dart';
 import '../../../services/status_bar_service.dart';
+import '../toolbox_tool_registry.dart';
 import '../../../viewmodels/toolbox/crc_viewmodel.dart';
 import '../widgets/file_drop_zone.dart';
 import '../widgets/hex_ascii_viewer.dart';
@@ -25,7 +26,8 @@ class _CrcToolState extends State<CrcTool> with AutomaticKeepAliveClientMixin {
 
   bool get _isCurrentTab {
     final controller = DefaultTabController.of(context);
-    return controller.index == 3;
+    return controller.index ==
+        ToolboxToolRegistry.slotOf(ToolboxToolRegistry.crcId);
   }
 
   @override
@@ -48,7 +50,7 @@ class _CrcToolState extends State<CrcTool> with AutomaticKeepAliveClientMixin {
         ? (_viewModel.files.isEmpty ? '就绪 — 拖入或打开文件' : '未选中文件')
         : selected.map((f) => f.path).join(' | ');
     StatusBarService().updateToolboxStatus(
-      3,
+      ToolboxToolRegistry.crcId,
       StatusBarInfo(
         text: text,
         icon: selected.isNotEmpty ? Icons.insert_drive_file : null,

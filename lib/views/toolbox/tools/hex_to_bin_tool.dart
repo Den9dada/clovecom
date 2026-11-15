@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../../models/toolbox/toolbox_file_entry.dart';
 import '../../../services/toolbox/hex_text_parser.dart';
 import '../../../services/status_bar_service.dart';
+import '../toolbox_tool_registry.dart';
 import '../../../ui/widgets/ds_toast.dart';
 import '../../../ui/widgets/ds_widgets.dart';
 import '../../../viewmodels/toolbox/hex_to_bin_viewmodel.dart';
@@ -45,7 +46,7 @@ class _HexToBinToolState extends State<HexToBinTool>
   void _updateStatus() {
     final entry = _viewModel.selectedEntry;
     StatusBarService().updateToolboxStatus(
-      0,
+      ToolboxToolRegistry.hexToBinId,
       StatusBarInfo(
         text: entry != null ? entry.path : '就绪 — 拖入或打开 HEX 文件',
         icon: entry != null ? Icons.insert_drive_file : null,
@@ -55,7 +56,8 @@ class _HexToBinToolState extends State<HexToBinTool>
 
   bool get _isCurrentTab {
     final controller = DefaultTabController.of(context);
-    return controller.index == 0;
+    return controller.index ==
+        ToolboxToolRegistry.slotOf(ToolboxToolRegistry.hexToBinId);
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../services/status_bar_service.dart';
+import '../toolbox_tool_registry.dart';
 import '../../../ui/widgets/ds_toast.dart';
 import '../../../viewmodels/toolbox/bin_editor_viewmodel.dart';
 import '../widgets/hex_ascii_viewer.dart';
@@ -42,7 +43,7 @@ class _BinEditorToolState extends State<BinEditorTool>
   void _updateStatus() {
     final count = _viewModel.files.length;
     StatusBarService().updateToolboxStatus(
-      1,
+      ToolboxToolRegistry.binEditorId,
       StatusBarInfo(
         text: count > 0
             ? '$count 个文件 · ${_viewModel.fileName}'
@@ -54,7 +55,8 @@ class _BinEditorToolState extends State<BinEditorTool>
 
   bool get _isCurrentTab {
     final controller = DefaultTabController.of(context);
-    return controller.index == 1;
+    return controller.index ==
+        ToolboxToolRegistry.slotOf(ToolboxToolRegistry.binEditorId);
   }
 
   @override
