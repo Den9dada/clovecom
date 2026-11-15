@@ -58,6 +58,12 @@
 - 两个 VM 的空态 bytes getter 规范化为 `const <int>[]`，保证查看器域 Selector 的相等判定廉价且身份稳定（内容不变则不重建）。
 - 验证：改动文件 `dart analyze` 零问题；新增 9 项内容域身份契约测试（空态身份、相同内容编辑早退、清错误/改名/重复选中不换身份、真实编辑/切换条目/规划变更换身份）；工具箱目录 101 测试全绿，零回归。
 
+### refactor: 轨道 C 模块框架（C4 删除 EditBuffer 死代码）
+
+- C4 前提复核（轨道 C 已记录）：BIN 编辑文档的编辑历史/保存基线/revision 均已存在，`EditBuffer` 字节差量是零引用零测试的死代码。本次删除整文件 `lib/services/toolbox/binary_data_source.dart`（`BinaryDataSource` 抽象/`MemoryDataSource`/`EditBuffer`/`BinaryDataSourceRaw` 扩展，110 行）——通过 deletion test：删除后无任何调用方需要承接复杂度，只消除“编辑文档有两套存储语义”的误导。差量存储的采纳暂缓：需改 HEX 查看器 painter 的数据契约且收益不明，不在本次动编辑文档语义。
+- 验证：`dart analyze lib/services/toolbox/` 零问题；工具箱目录 101 测试全绿，零回归。
+- 附带发现（未动，登记待续）：`BinLinkStatusBar` widget 零引用（拼接工具的状态信息走应用级状态栏），属同类死代码，留待下一增量一并清理。
+
 ## 2026-10-18
 
 ### fix: 消除协议切换时接口参数框闪动
