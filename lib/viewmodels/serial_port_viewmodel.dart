@@ -321,7 +321,8 @@ class SerialPortViewModel extends ChangeNotifier {
     if (_state.isConnected) return true;
     if (_config.portName.isEmpty) {
       _state = SerialPortState(error: '请选择串口');
-      notifyListeners();
+      // 系统提示统一经 errorStream→DsToast 浮层呈现；state.error 仅供连接态语义。
+      _setError('请选择串口');
       return false;
     }
     SerialByteTransport? transport;
@@ -330,6 +331,7 @@ class SerialPortViewModel extends ChangeNotifier {
       _serialPort = transport;
       _connectedPortName = _config.portName;
       _state = SerialPortState(isConnected: true);
+      _errorMessage = null;
       _readStreamSub = transport.chunks.listen(
         (data) {
           if (identical(_serialPort, transport)) _processReceivedData(data);
@@ -344,7 +346,8 @@ class SerialPortViewModel extends ChangeNotifier {
       _serialPort = null;
       _connectedPortName = null;
       _state = SerialPortState(error: '连接失败: $error');
-      notifyListeners();
+      // 修复串口打开失败静默：经 errorStream→DsToast 浮层提示（clovertls 对齐）。
+      _setError('连接失败: $error');
       return false;
     }
   }

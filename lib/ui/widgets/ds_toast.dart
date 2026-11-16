@@ -58,7 +58,18 @@ class DsToastHostState extends State<DsToastHost> {
 
   /// 追加一条 Toast。
   void show(String message, DsToastKind kind) {
-    if (!mounted) return;
+    // 应用状态和页面捕获可能分别传入异常字符串与正文，统一后去重。
+    message = message.trim().replaceFirst(
+      RegExp(r'^(?:FormatException:|Bad state:)\s*'),
+      '',
+    );
+    if (!mounted ||
+        message.isEmpty ||
+        _toasts.any(
+          (toast) => toast.message == message && toast.kind == kind,
+        )) {
+      return;
+    }
     setState(() {
       _toasts.add(_ToastEntry(id: _nextId++, message: message, kind: kind));
       while (_toasts.length > _maxVisible) {

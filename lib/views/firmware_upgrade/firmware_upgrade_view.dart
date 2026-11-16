@@ -38,7 +38,7 @@ class _FirmwareUpgradeViewState extends State<FirmwareUpgradeView> {
     _vm.addListener(_updated);
     _errors = _vm.errorStream.listen((message) {
       if (mounted) {
-        // 瞬态适配器：即时轻提示；持久错误另由 errorMessage 内联 banner 呈现。
+        // 系统提示统一经 DsToast 浮层呈现（clovertls 对齐），不再内联到页面内容。
         showDsToast(message, kind: DsToastKind.error);
       }
     });
@@ -91,8 +91,6 @@ class _FirmwareUpgradeViewState extends State<FirmwareUpgradeView> {
               child: _connectionCard(),
             ),
           ),
-          // 持久错误内联面板：连接/升级失败常驻可见，直至错误清除。
-          _buildErrorBanner(colors),
           const SizedBox(height: 12),
           Expanded(
             child: LayoutBuilder(
@@ -133,37 +131,6 @@ class _FirmwareUpgradeViewState extends State<FirmwareUpgradeView> {
                   ],
                 );
               },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 持久错误适配器：把 _vm.errorMessage 渲染为内联 banner，无错误时零尺寸。
-  Widget _buildErrorBanner(ColorScheme colors) {
-    final message = _vm.errorMessage;
-    if (message == null || message.isEmpty) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.error.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.error_outline, size: 16, color: colors.error),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.onErrorContainer,
-              ),
             ),
           ),
         ],
@@ -325,14 +292,6 @@ class _FirmwareUpgradeViewState extends State<FirmwareUpgradeView> {
               ], (value) => _vm.updateConfig(flowControl: value)),
             ],
           ),
-          if (_vm.state.error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _vm.state.error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
         ],
       ),
     ),

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-16
+
+### refactor: 系统提示统一走 clovertls 式 DsToast 浮层（修订 C2/ADR-0002）
+
+- 用户真机实测串口后指令："所有的系统提示参考 clovertls 的提示弹窗的实现，而不是将提示夹杂在页内容里。" 调研确认 clovertls 系统提示（错误/警告/成功，含"串口已拔出，升级已中断"）一律经 `showDsToast` 全局浮层：左下角 3 秒倒计时、悬停暂停、单击淡出、同文同语义去重、剥离 `Bad state:`/`FormatException:` 前缀；持久错误可见性由连接态补偿。`InterfaceStatusHost` 是接口占用功能浮窗，非事件提示。
+- 移除三处内联系统提示：串口视图 `_buildErrorBanner`、固件视图 `_buildErrorBanner`、固件连接卡内联 `state.error` 红字。每条错误本已经 `errorStream→showDsToast`，移除内联不丢提示；拔出另有端口"未连接"态补偿（clovertls 同款）。
+- 统一错误呈现 seam：`connect()` 空端口校验与打开失败改走 `_setError→errorStream→toast`，真正修复串口打开失败静默——ADR-0002 曾声称修复，实际仅固件视图内联渲染 `state.error`，串口端口栏不渲染故静默。`state.error` 保留供连接态语义与测试，连接成功清 `_errorMessage`。
+- `ds_toast.show()` 同步 clovertls 归一化＋去重（两边 toast 其余部分本就同源，直接修掉截图里"Bad state: 串口读取失败或设备已移除"的前缀）；`errorMessage` 字段保留为 VM 错误态测试面（11 处升级测试断言），不再内联渲染。
+- 保留非事件提示的功能态内容：固件"协议有新版本"上下文 hint（绑定 hasNewVersion）、i2c 日志条目错误（日志记录）、工具箱规划状态面板（功能态）。
+- 记录 ADR-0003 取代 ADR-0002 的"内联面板（持久错误）"适配器与 DsDialog 持久错误角色；ADR-0002 标注被取代部分。权衡：toast 3 秒自动消失，持久错误可见性由连接态补偿；若未来需持久错误清单应走功能态浮窗而非页面内联。
+- 验证：改动文件 `flutter analyze` 零问题；新增 4 项 toast 归一化/去重测试＋1 项连接失败/空端口 errorStream 提示测试，串口连接 4 测试＋toast 4 测试全绿。协议升级测试的 12 个失败为既有 Lua `RuntimeUnavailable` 环境性失败（发生在 prepare→载入协议→Lua 校验，与本次改动无关），非回归。
+
 ## 2026-11-15
 
 ### chore: 提交桌面 GUI 迁移基线

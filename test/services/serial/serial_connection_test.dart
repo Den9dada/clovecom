@@ -99,4 +99,29 @@ void main() {
     await old.input.close();
     await current.input.close();
   });
+
+  test('连接失败与空端口校验经 errorStream 发系统提示（toast 通路，修复静默失败）', () async {
+    final vm = SerialPortViewModel(
+      directory: SerialPortDirectory(
+        scan: () async => ports([]),
+        changes: const Stream.empty(),
+      ),
+      openTransport: (_) => throw StateError('占用'),
+    );
+    final errors = <String>[];
+    final sub = vm.errorStream.listen(errors.add);
+
+    // 空端口：未选择串口时给出提示，而非静默失败。
+    expect(await vm.connect(), isFalse);
+    // 打开失败：state.error 保留供连接态语义，同时经 errorStream 触发 toast。
+    vm.updateConfig(portName: 'COM2');
+    expect(await vm.connect(), isFalse);
+    expect(vm.state.error, contains('占用'));
+    await Future<void>.delayed(Duration.zero);
+    expect(errors, contains('请选择串口'));
+    expect(errors.any((e) => e.contains('占用')), isTrue);
+
+    await sub.cancel();
+    vm.dispose();
+  });
 }

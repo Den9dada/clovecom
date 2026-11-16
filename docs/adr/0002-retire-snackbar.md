@@ -1,6 +1,6 @@
 # 退役 SnackBar，统一反馈走四个呈现适配器
 
-Status: accepted
+Status: accepted（"内联面板（持久错误）"适配器与 DsDialog 持久错误角色被 ADR-0003 取代：系统提示统一走 DsToast 浮层）
 
 "操作失败"曾以 5 种机制呈现（SnackBar、内联面板、状态栏、弹窗、DsToast），异步反馈不变量（防重入/清旧错/错误保留/mounted 守卫）被复制 ≥7 份，而深模块 DsDialogAction 零调用。决定退役 SnackBar，呈现适配器定为 DsDialog（确认/输入/进度/持久错误）、DsToast（瞬态）、内联面板（持久错误）、状态栏（状态语义）；业务侧只发语义事件，适配器负责映射。理由：DsDialog/DsToast 已是共享主题下的现成适配器（真实的缝），SnackBar 与 DsToast 语义重叠；统一后反馈不变量只住一处。
 
