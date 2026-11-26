@@ -11,6 +11,7 @@ class _FakeTransport implements SerialByteTransport {
   _FakeTransport(SerialPortConfig config) : port = config.portName;
   final String port;
   final _controller = StreamController<Uint8List>();
+  Completer<void>? closeGate;
   bool closed = false;
   int closeCount = 0;
   int purgeCount = 0;
@@ -19,18 +20,19 @@ class _FakeTransport implements SerialByteTransport {
   @override
   Stream<Uint8List> get chunks => _controller.stream;
   @override
-  bool send(Uint8List bytes, int timeoutMs) {
+  Future<SerialWriteResult> send(Uint8List bytes, int timeoutMs) async {
     sent.add(bytes);
-    return true;
+    return SerialWriteResult.success(bytes.length);
   }
 
   @override
   void purge() => purgeCount++;
   @override
-  void close() {
+  Future<void> close() async {
     closed = true;
     closeCount++;
-    _controller.close();
+    await closeGate?.future;
+    unawaited(_controller.close());
   }
 }
 
@@ -38,6 +40,21 @@ void main() {
   SerialPortConfig config(String port) => SerialPortConfig(portName: port);
 
   group('SerialConnectionOwner', () {
+    test('底层关闭完成前不能重新租用同一串口', () async {
+      final owner = SerialConnectionOwner();
+      final fake = _FakeTransport(config('COM3'))
+        ..closeGate = Completer<void>();
+      final lease = owner.acquire(config('COM3'), (_) => fake);
+      final closing = lease.close();
+      expect(owner.isLeased('COM3'), isTrue);
+      expect(
+        () => owner.acquire(config('COM3'), _FakeTransport.new),
+        throwsStateError,
+      );
+      fake.closeGate!.complete();
+      await closing;
+      expect(owner.isLeased('COM3'), isFalse);
+    });
     test('租用后端口被标记占用', () {
       final owner = SerialConnectionOwner();
       owner.acquire(config('COM3'), _FakeTransport.new);
@@ -63,21 +80,21 @@ void main() {
       expect(owner.isLeased('COM4'), isTrue);
     });
 
-    test('close 释放租约后可再次租用', () {
+    test('close 释放租约后可再次租用', () async {
       final owner = SerialConnectionOwner();
       final lease = owner.acquire(config('COM3'), _FakeTransport.new);
-      lease.close();
+      await lease.close();
       expect(owner.isLeased('COM3'), isFalse);
       owner.acquire(config('COM3'), _FakeTransport.new);
       expect(owner.isLeased('COM3'), isTrue);
     });
 
-    test('close 幂等：内层传输仅关闭一次', () {
+    test('close 幂等：内层传输仅关闭一次', () async {
       final owner = SerialConnectionOwner();
       final fake = _FakeTransport(config('COM3'));
       final lease = owner.acquire(config('COM3'), (_) => fake);
-      lease.close();
-      lease.close();
+      await lease.close();
+      await lease.close();
       expect(fake.closeCount, 1);
       expect(owner.isLeased('COM3'), isFalse);
     });
@@ -98,7 +115,7 @@ void main() {
       final fake = _FakeTransport(config('COM3'));
       final lease = owner.acquire(config('COM3'), (_) => fake);
       final bytes = Uint8List.fromList([1, 2, 3]);
-      expect(lease.send(bytes, 100), isTrue);
+      expect((await lease.send(bytes, 100)).succeeded, isTrue);
       lease.purge();
       expect(fake.sent, [bytes]);
       expect(fake.purgeCount, 1);
@@ -110,15 +127,15 @@ void main() {
         [9],
       ]);
       await sub.cancel();
-      lease.close();
+      await lease.close();
     });
 
-    test('陈旧租约重复 close 不误释新租约', () {
+    test('陈旧租约重复 close 不误释新租约', () async {
       final owner = SerialConnectionOwner();
       final old = owner.acquire(config('COM3'), _FakeTransport.new);
-      old.close();
+      await old.close();
       owner.acquire(config('COM3'), _FakeTransport.new);
-      old.close(); // 已释放，幂等无操作
+      await old.close(); // 已释放，幂等无操作
       expect(owner.isLeased('COM3'), isTrue);
     });
   });

@@ -7,8 +7,10 @@ project(runner LANGUAGES CXX)
 #
 # Any new source files that you add to the application should be added here.
 add_executable(${BINARY_NAME} WIN32
+  "app_update.cpp"
   "flutter_window.cpp"
   "serial_ports.cpp"
+  "native_serial_loop.cpp"
   "main.cpp"
   "utils.cpp"
   "win32_window.cpp"
@@ -35,7 +37,7 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
-target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "setupapi.lib" "advapi32.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "advapi32.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "delayimp.lib")
 target_link_options(${BINARY_NAME} PRIVATE "/DELAYLOAD:flutter_windows.dll")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../models/serial_port_model.dart';
 import '../services/serial/serial_port_catalog.dart';
 

@@ -2,7 +2,7 @@
 //
 // 显示单个寄存器的位域详情 + HEX 编辑联动。
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import '../../../models/i2c_register_map.dart';
 

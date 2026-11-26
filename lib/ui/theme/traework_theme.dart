@@ -4,7 +4,7 @@
 /// 仅在 lib/ui 下使用，避免后端 lib/src 模块依赖 Flutter。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 
 

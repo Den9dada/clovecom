@@ -1,6 +1,6 @@
 // Register 子页 — 加载 Excel 寄存器映射，读写芯片寄存器
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:clovecom/utils/file_picker_compat.dart';
@@ -66,9 +66,12 @@ class _I2cRegisterTabState extends State<I2cRegisterTab> {
             const SizedBox(height: 16),
             Text('加载芯片寄存器映射', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               '拖入 .xlsx 文件或点击下方按钮加载',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -163,11 +166,16 @@ class _I2cRegisterTabState extends State<I2cRegisterTab> {
                         ),
                       )
                     else
-                      const Expanded(
+                      Expanded(
                         child: Center(
                           child: Text(
                             '← 点击寄存器列表查看详情',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ),

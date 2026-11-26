@@ -1,5 +1,5 @@
 import 'package:clovecom/ui/widgets/ds_toast.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 锁定 clovertls 对齐的提示弹窗不变量：归一化异常前缀、同文去重、空消息丢弃。

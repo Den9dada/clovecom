@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../theme/traework_theme.dart';
 
@@ -116,7 +116,7 @@ class DsErrorMessage extends StatelessWidget {
     liveRegion: true,
     child: Text(
       message,
-      style: traeworkText(color: TraeWorkColors.statusError),
+      style: traeworkText(color: Theme.of(context).colorScheme.error),
     ),
   );
 }

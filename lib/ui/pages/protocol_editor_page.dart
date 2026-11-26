@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'interaction_editor.dart';
 
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../protocol_editor.dart';
 import '../controllers/app_controller.dart';
@@ -247,13 +247,14 @@ class _ProtocolTreePanel extends StatelessWidget {
     final width = Responsive.densityOf(context) == AppLayoutDensity.compact
         ? 220.0
         : 260.0;
+    final colors = Theme.of(context).colorScheme;
     return Container(
       key: const ValueKey('protocol-tree-panel'),
       width: width,
-      decoration: const BoxDecoration(
-        color: TraeWorkColors.bgBaseSecondary,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
         border: Border(
-          right: BorderSide(color: TraeWorkColors.borderNeutralL1),
+          right: BorderSide(color: colors.outlineVariant),
         ),
       ),
       child: Column(
@@ -442,7 +443,7 @@ class _ProtocolListItem extends StatelessWidget {
               size: draft.isDirty ? 8 : 16,
               color: draft.isDirty
                   ? TraeWorkColors.statusWarning
-                  : TraeWorkColors.iconTertiary,
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: TraeWorkSpacers.s8),
             Expanded(
@@ -453,8 +454,8 @@ class _ProtocolListItem extends StatelessWidget {
                 style: traeworkText(
                   size: TraeWorkFontSizes.bodyMd,
                   color: active
-                      ? TraeWorkColors.textBrand
-                      : TraeWorkColors.textDefault,
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface,
                   weight: FontWeight.w500,
                 ),
               ),
@@ -724,12 +725,14 @@ class _FieldLibraryState extends State<_FieldLibrary> {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-    key: const ValueKey('protocol-field-library'),
-    decoration: const BoxDecoration(
-      color: TraeWorkColors.bgBaseSecondary,
-      border: Border(bottom: BorderSide(color: TraeWorkColors.borderNeutralL1)),
-    ),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('protocol-field-library'),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        border: Border(bottom: BorderSide(color: colors.outlineVariant)),
+      ),
     child: Stack(
       children: [
         if (widget.collapsed)
@@ -755,7 +758,7 @@ class _FieldLibraryState extends State<_FieldLibrary> {
                           overflow: TextOverflow.ellipsis,
                           style: traeworkText(
                             size: 11,
-                            color: TraeWorkColors.textTertiary,
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -779,7 +782,7 @@ class _FieldLibraryState extends State<_FieldLibrary> {
                   width: 56,
                   height: 16,
                   child: Material(
-                    color: TraeWorkColors.bgBaseDefault,
+                    color: colors.surfaceContainerLowest,
                     elevation: 4,
                     shadowColor: const Color(0x33000000),
                     borderRadius: const BorderRadius.vertical(
@@ -803,7 +806,8 @@ class _FieldLibraryState extends State<_FieldLibrary> {
         ),
       ],
     ),
-  );
+    );
+  }
 
   Widget _fieldRows() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -896,8 +900,8 @@ class _FieldLibraryState extends State<_FieldLibrary> {
             begin: left ? Alignment.centerLeft : Alignment.centerRight,
             end: left ? Alignment.centerRight : Alignment.centerLeft,
             colors: [
-              TraeWorkColors.bgBaseSecondary,
-              TraeWorkColors.bgBaseSecondary.withValues(alpha: 0),
+              Theme.of(context).colorScheme.surfaceContainerLow,
+              Theme.of(context).colorScheme.surfaceContainerLow.withValues(alpha: 0),
             ],
           ),
         ),
@@ -905,7 +909,7 @@ class _FieldLibraryState extends State<_FieldLibrary> {
           alignment: left ? Alignment.centerLeft : Alignment.centerRight,
           child: Icon(
             left ? Icons.chevron_left : Icons.chevron_right,
-            color: TraeWorkColors.textBrand,
+            color: Theme.of(context).colorScheme.primary,
             size: 20,
           ),
         ),
@@ -961,7 +965,7 @@ class _FieldLibraryState extends State<_FieldLibrary> {
                   Icon(
                     item.icon,
                     size: 14,
-                    color: TraeWorkColors.iconSecondary,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: TraeWorkSpacers.s6),
                   Expanded(
@@ -971,11 +975,15 @@ class _FieldLibraryState extends State<_FieldLibrary> {
                       overflow: TextOverflow.ellipsis,
                       style: traeworkText(
                         size: TraeWorkFontSizes.bodySm,
-                        color: TraeWorkColors.textDefault,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ),
-                  Icon(Icons.add, size: 12, color: TraeWorkColors.iconTertiary),
+                  Icon(
+                    Icons.add,
+                    size: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ],
               ),
             ),
@@ -1149,19 +1157,21 @@ class _PanelTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       height: 36,
-      decoration: const BoxDecoration(
-        color: TraeWorkColors.bgBaseSecondary,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
         border: Border(
-          bottom: BorderSide(color: TraeWorkColors.borderNeutralL1),
+          bottom: BorderSide(color: colors.outlineVariant),
         ),
       ),
-      child: Row(children: [_tab(0, '帧结构'), _tab(1, '二进制预览')]),
+      child: Row(children: [_tab(context, 0, '帧结构'), _tab(context, 1, '二进制预览')]),
     );
   }
 
-  Widget _tab(int index, String label) {
+  Widget _tab(BuildContext context, int index, String label) {
+    final colors = Theme.of(context).colorScheme;
     final isActive = active == index;
     return DsInteraction(
       onTap: () => onChanged(index),
@@ -1173,7 +1183,7 @@ class _PanelTabs extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: isActive ? TraeWorkColors.bgBrand : Colors.transparent,
+              color: isActive ? colors.primary : Colors.transparent,
               width: 2,
             ),
           ),
@@ -1182,9 +1192,7 @@ class _PanelTabs extends StatelessWidget {
           label,
           style: traeworkText(
             size: TraeWorkFontSizes.bodySm,
-            color: isActive
-                ? TraeWorkColors.textBrand
-                : TraeWorkColors.textSecondary,
+            color: isActive ? colors.primary : colors.onSurfaceVariant,
             weight: FontWeight.w500,
           ),
         ),
@@ -1210,7 +1218,7 @@ class _FrameStructure extends StatelessWidget {
       return _empty('从左侧字段库点击添加字段');
     }
     return Container(
-      color: TraeWorkColors.bgBaseDefault,
+      color: Theme.of(context).colorScheme.surface,
       padding: const EdgeInsets.all(TraeWorkSpacers.s12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1543,17 +1551,18 @@ class _FieldPropsPanel extends StatelessWidget {
     final width = Responsive.densityOf(context) == AppLayoutDensity.compact
         ? 240.0
         : 280.0;
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: width,
-      decoration: const BoxDecoration(
-        color: TraeWorkColors.bgBaseDefault,
-        border: Border(left: BorderSide(color: TraeWorkColors.borderNeutralL1)),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(left: BorderSide(color: colors.outlineVariant)),
       ),
       child: selectedIndex == null || selectedIndex! >= draft.fieldCount
           ? ListView(
               padding: const EdgeInsets.all(28),
               children: [
-                _empty('选择字段查看属性'),
+                _empty(context, '选择字段查看属性'),
                 const SizedBox(height: 24),
                 _ProtocolSettings(draft: draft),
               ],
@@ -1567,7 +1576,7 @@ class _FieldPropsPanel extends StatelessWidget {
     );
   }
 
-  Widget _empty(String message) {
+  Widget _empty(BuildContext context, String message) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(TraeWorkSpacers.s16),
@@ -1575,7 +1584,7 @@ class _FieldPropsPanel extends StatelessWidget {
           message,
           style: traeworkText(
             size: TraeWorkFontSizes.bodySm,
-            color: TraeWorkColors.textTertiary,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           textAlign: TextAlign.center,
         ),
@@ -1789,7 +1798,7 @@ class _FieldPropsState extends State<_FieldProps> {
           '字节序',
           style: traeworkText(
             size: TraeWorkFontSizes.bodySm,
-            color: TraeWorkColors.textTertiary,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         Row(
@@ -1822,7 +1831,7 @@ class _FieldPropsState extends State<_FieldProps> {
           '描述',
           style: traeworkText(
             size: TraeWorkFontSizes.bodySm,
-            color: TraeWorkColors.textTertiary,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: TraeWorkSpacers.s4),
@@ -2216,7 +2225,7 @@ class _BinaryPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final preview = draft.preview;
     return Container(
-      color: TraeWorkColors.bgBaseDefault,
+      color: Theme.of(context).colorScheme.surface,
       padding: const EdgeInsets.all(TraeWorkSpacers.s12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2417,9 +2426,11 @@ class _EditorFooter extends StatelessWidget {
         horizontal: TraeWorkSpacers.s12,
         vertical: TraeWorkSpacers.s8,
       ),
-      decoration: const BoxDecoration(
-        color: TraeWorkColors.bgBaseSecondary,
-        border: Border(top: BorderSide(color: TraeWorkColors.borderNeutralL1)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        border: Border(
+          top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
       ),
       child: Row(
         children: [
@@ -2438,7 +2449,7 @@ class _EditorFooter extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: traeworkText(
                   size: 12,
-                  color: TraeWorkColors.statusError,
+                  color: Theme.of(context).colorScheme.error,
                 ),
               ),
             ),

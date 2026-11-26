@@ -1,7 +1,7 @@
 import 'package:clovecom/widgets/app_dropdown.dart';
 import 'package:clovecom/widgets/baud_rate_input.dart';
 import 'package:clovecom/ui/desktop_theme.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

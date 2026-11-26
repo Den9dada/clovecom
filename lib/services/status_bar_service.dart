@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 状态栏信息
 class StatusBarInfo {
@@ -24,7 +24,8 @@ class StatusBarService {
   StatusBarService._();
 
   /// 工具箱在 HomeView 主导航中的固定 tab 槽位。
-  static const int _toolboxTabIndex = 3;
+  /// （接口通信=0，工具箱=1，CH34x=2，协议编辑=3）
+  static const int _toolboxTabIndex = 1;
 
   final Map<int, StatusBarInfo> _statuses = {};
   final Map<String, StatusBarInfo> _toolboxStatuses = {};

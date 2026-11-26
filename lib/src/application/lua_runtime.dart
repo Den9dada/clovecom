@@ -33,7 +33,7 @@ class LuaRunContext {
     required this.send,
     this.sendTo,
     this.lastPeer,
-    this.runtimeSchema = const {},
+    Map<String, dynamic> runtimeSchema = const {},
     this.readRuntime,
     this.writeRuntime,
     this.isClosed,
@@ -41,12 +41,9 @@ class LuaRunContext {
     this.firmwareName = 'firmware.bin',
     Map<String, dynamic> target = const {},
     this.peerIsManaged = false,
-  }) : firmware = firmware == null
-           ? null
-           : Uint8List.fromList(firmware).asUnmodifiableView(),
-       target = Map<String, dynamic>.unmodifiable(
-         jsonDecode(jsonEncode(target)) as Map,
-       );
+  }) : firmware = _firmwareSnapshot(firmware),
+       target = _frozenMap(target),
+       runtimeSchema = _frozenMap(runtimeSchema);
   final ConnectionConfig config;
   final Stream<RawPacket> inbound;
   final Future<void> Function(Uint8List) send;
@@ -77,7 +74,17 @@ class LuaRuntime {
     'max_write_bytes': 65536,
     'max_artifact_read_bytes': 65536,
     'max_log_entry_bytes': 4096,
+    'max_processes': 4,
+    'max_firmware_bytes': 16777216,
+    'max_rx_packets': 4096,
   };
+
+  static int _processes = 0;
+  static bool _reserveProcess() {
+    if (_processes >= limits['max_processes']!) return false;
+    _processes++;
+    return true;
+  }
 
   ({String executable, String sdk}) get paths {
     final app = File(Platform.resolvedExecutable).parent.path;
@@ -119,28 +126,41 @@ class LuaRuntime {
       diagnostics.add(ScriptDiagnostic('$error', line: 1));
     }
     Process? process;
+    var permit = false, exited = false;
     try {
+      permit = _reserveProcess();
+      if (!permit) throw const LuaHostError('ResourceLimit', 'Lua进程总量超过4个');
       final location = paths;
       process = await Process.start(location.executable, [
         location.sdk,
         '--check',
       ], runInShell: false);
-      final output = process.stdout.transform(utf8.decoder).join();
-      final errors = process.stderr.transform(utf8.decoder).join();
+      Future<({String? text, Object? error})> capture(
+        Stream<List<int>> stream,
+      ) => _boundedText(stream).then<({String? text, Object? error})>(
+        (text) => (text: text, error: null),
+        onError: (Object error) {
+          process?.kill();
+          return (text: null, error: error);
+        },
+      );
+      final output = capture(process.stdout), errors = capture(process.stderr);
       process.stdin.writeln(jsonEncode({'source': protocol.source}));
       await process.stdin.close();
       final exit = await process.exitCode.timeout(const Duration(seconds: 5));
-      final stdout = await output;
-      final stderr = await errors;
+      exited = true;
+      final stdout = await output, stderr = await errors;
+      if (stdout.error != null) throw stdout.error!;
+      if (stderr.error != null) throw stderr.error!;
       if (exit != 0) {
         throw LuaHostError(
           'RuntimeUnavailable',
-          stderr.isEmpty ? 'Lua 校验进程异常退出' : stderr,
+          stderr.text!.isEmpty ? 'Lua校验进程异常退出' : stderr.text!,
         );
       }
-      final result = jsonDecode(stdout) as Map<String, dynamic>;
+      final result = jsonDecode(stdout.text!) as Map<String, dynamic>;
       if (result['valid'] != true) {
-        final message = result['error'] as String? ?? 'Lua 语法错误';
+        final message = result['error'] as String? ?? 'Lua语法错误';
         final line = RegExp(r'protocol\.lua:(\d+):').firstMatch(message);
         diagnostics.add(
           ScriptDiagnostic(
@@ -150,8 +170,18 @@ class LuaRuntime {
         );
       }
     } catch (error) {
-      process?.kill();
       diagnostics.add(ScriptDiagnostic('无法校验脚本：$error'));
+    } finally {
+      if (process != null && !exited) {
+        process.kill();
+        try {
+          await process.exitCode.timeout(const Duration(seconds: 3));
+          exited = true;
+        } catch (_) {
+          // 未确认退出时仍占进程预算，不能把kill请求当结束证明。
+        }
+      }
+      if (permit && (process == null || exited)) _processes--;
     }
     return List.unmodifiable(diagnostics);
   }
@@ -190,14 +220,16 @@ class LuaRun implements UpgradeRun {
       onDone: () =>
           _finish(UpgradeTerminal.failed, error: 'SessionLost：物理会话已关闭'),
     );
+    _hasProcessPermit = LuaRuntime._reserveProcess();
     _pin = _configuredPeer();
     // 返回句柄后再启动，订阅者不会错过同步失败或第一个进度事件。
     unawaited(Future<void>.delayed(Duration.zero, _start));
   }
   final LuaRuntime runtime;
+  late final bool _hasProcessPermit;
   final InteractionProtocol protocol;
   final LuaRunContext context;
-  final _events = StreamController<UpgradeRunEvent>.broadcast();
+  final _events = StreamController<UpgradeRunEvent>.broadcast(sync: true);
   final _released = Completer<void>();
   final _interruptions = StreamController<void>.broadcast(sync: true);
   final _clock = Stopwatch()..start();
@@ -208,7 +240,6 @@ class LuaRun implements UpgradeRun {
   Completer<void>? _available;
   Process? _process;
   Future<Process>? _spawning;
-  Future<void>? _finishing;
   Timer? _watchdog;
   String _stderr = '';
   bool _revoked = false;
@@ -224,7 +255,23 @@ class LuaRun implements UpgradeRun {
   final String sessionId = 'run-${DateTime.now().microsecondsSinceEpoch}';
 
   @override
-  Stream<UpgradeRunEvent> get events => _events.stream;
+  Stream<UpgradeRunEvent> get events => Stream.multi((controller) {
+    final subscription = _events.stream.listen(
+      controller.addSync,
+      onError: controller.addErrorSync,
+      onDone: controller.closeSync,
+    );
+    controller.onCancel = subscription.cancel;
+    controller.onPause = () {
+      // 立刻脱离事件源；只保留关闭通知，暂停不能变成无界Stream邮箱。
+      unawaited(subscription.cancel());
+      controller.closeSync();
+      scheduleMicrotask(
+        () =>
+            _finish(UpgradeTerminal.failed, error: 'ResourceLimit：Lua事件观察已暂停'),
+      );
+    };
+  }, isBroadcast: true);
   @override
   Future<void> get released => _released.future;
 
@@ -259,14 +306,19 @@ class LuaRun implements UpgradeRun {
         }
       }
     }
-    _queuedBytes += packet.bytes.length;
-    if (_queuedBytes > LuaRuntime.limits['max_rx_bytes']! ||
-        _incoming.length >= 4096) {
+    if (_queuedBytes + packet.bytes.length >
+            LuaRuntime.limits['max_rx_bytes']! ||
+        _incoming.length >= LuaRuntime.limits['max_rx_packets']!) {
       _finish(UpgradeTerminal.failed, error: 'BufferOverflow：脚本接收队列超限');
       return;
     }
+    _queuedBytes += packet.bytes.length;
     _incoming.add({
-      'hex': _hex(Uint8List.fromList(packet.bytes)),
+      'hex': _hex(packet.bytes),
+      'connection_id': packet.connectionId,
+      'epoch': packet.epoch,
+      'source_sequence': packet.sequence,
+      'received_at': packet.receivedAt.toUtc().toIso8601String(),
       'byte_length': packet.bytes.length,
       'datagram': packet.datagram,
       'peer': packet.peer,
@@ -282,6 +334,13 @@ class LuaRun implements UpgradeRun {
   Future<void> _start() async {
     try {
       _ensureActive();
+      if (!_hasProcessPermit) {
+        throw const LuaHostError('ResourceLimit', 'Lua进程总量超过4个，请等待其他运行释放');
+      }
+      if ((context.firmware?.length ?? 0) >
+          LuaRuntime.limits['max_firmware_bytes']!) {
+        throw const LuaHostError('ResourceLimit', '单次固件超过16 MiB预算');
+      }
       final metadata = protocol.metadata;
       if (!metadata.transports.contains(context.config.kind.name)) {
         throw const LuaHostError('CapabilityDenied', '脚本不支持当前数据源类型');
@@ -322,7 +381,11 @@ class LuaRun implements UpgradeRun {
       }
       _stderrSubscription = process.stderr.listen((data) {
         if (_stderr.length < 16384) {
-          _stderr += utf8.decode(data, allowMalformed: true);
+          final text = utf8.decode(data, allowMalformed: true);
+          final remaining = 16384 - _stderr.length;
+          _stderr += text.length <= remaining
+              ? text
+              : text.substring(0, remaining);
         }
       });
       process.stdin.writeln(
@@ -346,15 +409,11 @@ class LuaRun implements UpgradeRun {
             },
         }),
       );
-      _events.add(
-        UpgradeRunEvent.log(
-          '[Lua ${protocol.name} ${protocol.digest.substring(0, 8)}] 开始执行',
-        ),
-      );
+      _log('[Lua ${protocol.name} ${protocol.digest.substring(0, 8)}] 开始执行');
       var buffer = '';
       await for (final chunk in process.stdout.transform(utf8.decoder)) {
         buffer += chunk;
-        if (buffer.length > 1048576) {
+        if (buffer.length > 1048576 || utf8.encode(buffer).length > 1048576) {
           throw const LuaHostError('ResourceLimit', '工作进程输出行超限');
         }
         while (buffer.contains('\n')) {
@@ -377,6 +436,17 @@ class LuaRun implements UpgradeRun {
         error: '$error',
       );
     }
+  }
+
+  void _log(String message) {
+    final bytes = utf8.encode(message);
+    var clipped = message;
+    if (bytes.length > LuaRuntime.limits['max_log_entry_bytes']!) {
+      // 留出截断提示及半个UTF8字符的替换空间，最终仍不超过4KiB。
+      final prefix = utf8.decode(bytes.sublist(0, 4064), allowMalformed: true);
+      clipped = '$prefix…（截断）';
+    }
+    _events.add(UpgradeRunEvent.log(clipped));
   }
 
   void _ensureActive() {
@@ -445,7 +515,9 @@ class LuaRun implements UpgradeRun {
     final message = jsonDecode(line) as Map<String, dynamic>;
     if (message['event'] == 'result') {
       if (message['ok'] == true && !_cancelled) {
-        resultData = Map<String, dynamic>.from(message['value'] as Map);
+        resultData = _frozenMap(
+          Map<String, dynamic>.from(message['value'] as Map),
+        );
         if (jsonEncode(resultData).length > 65536) {
           throw const LuaHostError('ResourceLimit', '流程结果超过 64 KiB');
         }
@@ -521,9 +593,7 @@ class LuaRun implements UpgradeRun {
         final count = _incoming.length, bytes = _queuedBytes;
         _incoming.clear();
         _queuedBytes = 0;
-        _events.add(
-          UpgradeRunEvent.log('脚本主动丢弃 $count 个接收块：${args['reason']}'),
-        );
+        _log('脚本主动丢弃 $count 个接收块：${args['reason']}');
         return {'bytes': bytes, 'packets': count};
       case 'send':
         if (deadline <= _clock.elapsedMilliseconds) {
@@ -604,11 +674,9 @@ class LuaRun implements UpgradeRun {
             );
           }
         }
-        progress = Map.unmodifiable(args);
+        progress = _frozenMap(args);
         if (args['message'] != null) {
-          _events.add(
-            UpgradeRunEvent.log('${args['stage'] ?? ''}：${args['message']}'),
-          );
+          _log('${args['stage'] ?? ''}：${args['message']}');
         }
         return null;
       case 'log':
@@ -620,11 +688,7 @@ class LuaRun implements UpgradeRun {
         final text =
             '${args['level'] ?? 'info'} ${args['message'] ?? ''}'
             '${args['fields'] == null ? '' : ' ${jsonEncode(args['fields'])}'}';
-        _events.add(
-          UpgradeRunEvent.log(
-            text.length > 4096 ? '${text.substring(0, 4096)}…（截断）' : text,
-          ),
-        );
+        _log(text);
         return null;
       case 'source_describe':
         return {
@@ -636,7 +700,8 @@ class LuaRun implements UpgradeRun {
         };
       case 'source_get':
         final values = await _wait(
-          context.readRuntime?.call() ?? Future.value(<String, dynamic>{}),
+          context.readRuntime?.call().then(_frozenMap) ??
+              Future.value(<String, dynamic>{}),
           deadline,
         );
         return {
@@ -697,7 +762,10 @@ class LuaRun implements UpgradeRun {
       }
     }
     if (_baseline == null) {
-      final values = await _wait(context.readRuntime!.call(), deadline);
+      final values = await _wait(
+        context.readRuntime!.call().then(_frozenMap),
+        deadline,
+      );
       _ensureActive();
       final serial = values['serial'] as Map? ?? const {};
       _baseline = {
@@ -716,7 +784,7 @@ class LuaRun implements UpgradeRun {
       throw const LuaHostError('UnsupportedSetting', '无法读取控制线基线，不能保证运行后恢复');
     }
     _ensureActive();
-    final operation = context.writeRuntime!(patch);
+    final operation = context.writeRuntime!(_frozenMap(patch)).then(_frozenMap);
     final tracked = operation.then<void>((_) {});
     _writes.add(tracked);
     unawaited(
@@ -741,19 +809,36 @@ class LuaRun implements UpgradeRun {
   }
 
   void _finish(UpgradeTerminal terminal, {String? error}) {
-    if (_finishing != null) return;
+    if (_revoked) return;
     _revoked = true;
     _watchdog?.cancel();
     _interruptions.add(null);
     _events.add(UpgradeRunEvent.finished(terminal, error: error));
-    _finishing = _release();
+    unawaited(_release());
   }
 
   Future<void> _release() async {
-    try {
-      final process = _process ?? await _spawning;
+    Object? failure;
+    StackTrace? failureStack;
+    Future<void> clean(FutureOr<void> Function() action) async {
+      try {
+        await action();
+      } catch (error, stack) {
+        failure ??= error;
+        failureStack ??= stack;
+      }
+    }
+
+    await clean(() async {
+      Process? process = _process;
+      if (process == null && _spawning != null) {
+        try {
+          process = await _spawning;
+        } catch (_) {
+          // Process.start失败没有创建进程；继续清理订阅与host操作。
+        }
+      }
       if (process != null) {
-        // 先给 SDK 一个关闭机会，随后强制终止计算死循环。
         unawaited(process.stdin.close().catchError((Object _) {}));
         try {
           await process.exitCode.timeout(const Duration(milliseconds: 250));
@@ -762,27 +847,31 @@ class LuaRun implements UpgradeRun {
           await process.exitCode.timeout(const Duration(seconds: 3));
         }
       }
-      await _subscription.cancel();
-      await Future.wait(
-        _writes.toList().map((f) => f.catchError((Object _) {})),
-      ).timeout(const Duration(seconds: 5));
-      if (_baseline != null &&
-          context.isClosed?.call() != true &&
-          (_baseline!['serial'] as Map).isNotEmpty) {
-        await context.writeRuntime!(_baseline!).timeout(
-          const Duration(seconds: 3),
-        );
-      }
+      if (_hasProcessPermit) LuaRuntime._processes--;
+    });
+    await clean(_subscription.cancel);
+    _incoming.clear();
+    _queuedBytes = 0;
+    // 写结果期限不是资源结束证明，真实清理完成前不释放owner。
+    await clean(
+      () =>
+          Future.wait(_writes.toList().map((f) => f.catchError((Object _) {}))),
+    );
+    if (_baseline != null &&
+        context.isClosed?.call() != true &&
+        (_baseline!['serial'] as Map).isNotEmpty) {
+      await clean(() => context.writeRuntime!(_frozenMap(_baseline!)));
+    }
+    await clean(() async {
       await _stderrSubscription?.cancel();
-      await _interruptions.close();
-      await _events.close();
+    });
+    await clean(_interruptions.close);
+    await clean(_events.close);
+    if (failure == null) {
       _released.complete();
-    } catch (error, stack) {
-      await _subscription.cancel();
-      await _stderrSubscription?.cancel();
-      if (!_interruptions.isClosed) await _interruptions.close();
-      await _events.close();
-      _released.completeError(error, stack);
+    } else {
+      // 每项清理至多尝试一次；异常必须通知owner，保留任务独占；未退出的进程继续占预算。
+      _released.completeError(failure!, failureStack);
     }
   }
 }
@@ -794,7 +883,7 @@ int _int(Object? value, String name, int minimum, int maximum) {
   return value;
 }
 
-String _hex(Uint8List data) =>
+String _hex(List<int> data) =>
     data.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 Uint8List _unhex(String value) {
   if (value.length.isOdd ||
@@ -806,4 +895,36 @@ Uint8List _unhex(String value) {
     for (var i = 0; i < value.length; i += 2)
       int.parse(value.substring(i, i + 2), radix: 16),
   ]);
+}
+
+/// 先跨JSON边界复制，再递归冻结；嵌套对象不借用调用方或其他目标状态。
+Map<String, dynamic> _frozenMap(Map<String, dynamic> value) =>
+    _freezeJson(jsonDecode(jsonEncode(value))) as Map<String, dynamic>;
+Object? _freezeJson(Object? value) {
+  if (value is Map) {
+    return Map<String, dynamic>.unmodifiable(
+      value.map((key, item) => MapEntry(key as String, _freezeJson(item))),
+    );
+  }
+  if (value is List) return List<Object?>.unmodifiable(value.map(_freezeJson));
+  return value;
+}
+
+Uint8List? _firmwareSnapshot(Uint8List? bytes) {
+  if (bytes == null) return null;
+  if (bytes.length > LuaRuntime.limits['max_firmware_bytes']!) {
+    throw const LuaHostError('ResourceLimit', '单次固件超过16 MiB预算');
+  }
+  return Uint8List.fromList(bytes).asUnmodifiableView();
+}
+
+Future<String> _boundedText(Stream<List<int>> stream) async {
+  final bytes = BytesBuilder(copy: false);
+  await for (final chunk in stream) {
+    if (bytes.length + chunk.length > 1048576) {
+      throw const LuaHostError('ResourceLimit', '工作进程输出超过1 MiB');
+    }
+    bytes.add(chunk);
+  }
+  return utf8.decode(bytes.takeBytes());
 }

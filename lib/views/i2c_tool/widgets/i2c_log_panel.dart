@@ -2,7 +2,7 @@
 //
 // 显示 I2C 操作历史记录，每条记录含时间戳、操作描述、数据、成功/失败状态。
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../models/ch341_operation_result.dart';
 
 class I2cLogPanel extends StatelessWidget {

@@ -17,16 +17,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
-  ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+  const HRESULT com_initialization =
+      ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   SetCurrentDirectoryToExecutablePath();
   LogStartupEvent(L"Working directory set to executable path");
   if (!ValidateFlutterRuntimeFiles()) {
-    ::CoUninitialize();
+    if (SUCCEEDED(com_initialization)) ::CoUninitialize();
     return EXIT_FAILURE;
   }
 
   flutter::DartProject project(L"data");
+  project.set_impeller_switch(flutter::ImpellerSwitch::Enabled);
   LogStartupEvent(L"Flutter project created");
 
   std::vector<std::string> command_line_arguments =
@@ -39,9 +41,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Size size(1280, 860);
   if (!window.Create(L"clovecom", origin, size)) {
     LogStartupEvent(L"Flutter window creation failed");
+    window.Destroy();
     ::MessageBoxW(nullptr, L"CloveCom failed to create the Flutter window.",
                   L"CloveCom startup error", MB_OK | MB_ICONERROR);
-    ::CoUninitialize();
+    if (SUCCEEDED(com_initialization)) ::CoUninitialize();
     return EXIT_FAILURE;
   }
   LogStartupEvent(L"Flutter window created");
@@ -53,6 +56,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::DispatchMessage(&msg);
   }
 
-  ::CoUninitialize();
+  // 某些插件的析构需要 COM。即使消息循环提前退出，也先释放窗口资源。
+  if (window.GetHandle()) window.Destroy();
+  if (SUCCEEDED(com_initialization)) ::CoUninitialize();
   return EXIT_SUCCESS;
 }

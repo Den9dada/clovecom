@@ -1,7 +1,7 @@
 // I2C 工具主页面 — 3 个子 Tab + 公共设备栏
 // 架构：仅设备栏监听 ViewModel 变化，3 个 Tab 不随 VM 通知重建
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import '../../services/status_bar_service.dart';
@@ -207,7 +207,7 @@ class _I2cStatusBinderState extends State<_I2cStatusBinder> {
     final vm = _vm;
     if (!vm.driverLoaded) {
       StatusBarService().update(
-        4,
+        2,
         const StatusBarInfo(
           text: 'CH341 驱动未加载',
           icon: Icons.error_outline,
@@ -221,7 +221,7 @@ class _I2cStatusBinderState extends State<_I2cStatusBinder> {
           .where((d) => d.deviceIndex == vm.selectedDeviceIndex)
           .firstOrNull;
       StatusBarService().update(
-        4,
+        2,
         StatusBarInfo(
           text: '已连接 ${dev?.description ?? "CH341 #${vm.selectedDeviceIndex}"}',
           icon: Icons.check_circle,
@@ -232,7 +232,7 @@ class _I2cStatusBinderState extends State<_I2cStatusBinder> {
     }
     final count = vm.availableDevices.length;
     StatusBarService().update(
-      4,
+      2,
       StatusBarInfo(
         text: count > 0 ? '就绪 — $count 个设备可用' : '就绪 — 未检测到设备',
         icon: Icons.circle_outlined,

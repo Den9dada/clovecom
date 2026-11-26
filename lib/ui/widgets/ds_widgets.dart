@@ -5,7 +5,7 @@
 /// [TraeWorkColors]/[TraeWorkSpacers]/[TraeWorkRadius]。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../theme/traework_theme.dart';
 import 'ds_dialog.dart';
@@ -201,7 +201,7 @@ class DsTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _resolve();
+    final palette = _resolve(Theme.of(context).colorScheme);
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: TraeWorkSpacers.s6,
@@ -232,36 +232,36 @@ class DsTag extends StatelessWidget {
     );
   }
 
-  _DsTagPalette _resolve() {
+  _DsTagPalette _resolve(ColorScheme colors) {
     switch (variant) {
       case DsTagVariant.neutral:
         return _DsTagPalette(
-          background: TraeWorkColors.bgOverlay2,
-          foreground: TraeWorkColors.textSecondary,
+          background: colors.surfaceContainerHigh,
+          foreground: colors.onSurfaceVariant,
           border: false,
         );
       case DsTagVariant.brand:
         return _DsTagPalette(
-          background: TraeWorkColors.bgBrandPopup,
-          foreground: TraeWorkColors.textBrand,
+          background: colors.primaryContainer,
+          foreground: colors.onPrimaryContainer,
           border: false,
         );
       case DsTagVariant.success:
         return _DsTagPalette(
-          background: const Color(0x1A15A877), // success 10%
-          foreground: TraeWorkColors.statusSuccess,
+          background: colors.tertiary.withValues(alpha: 0.14),
+          foreground: colors.tertiary,
           border: false,
         );
       case DsTagVariant.warning:
         return _DsTagPalette(
-          background: const Color(0x1AE27900),
+          background: const Color(0x24E27900),
           foreground: TraeWorkColors.statusWarning,
           border: false,
         );
       case DsTagVariant.error:
         return _DsTagPalette(
-          background: const Color(0x1AE8463A),
-          foreground: TraeWorkColors.statusError,
+          background: colors.error.withValues(alpha: 0.14),
+          foreground: colors.error,
           border: false,
         );
     }
@@ -340,44 +340,47 @@ class _DsInputState extends State<DsInput> {
   }
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: BoxConstraints(
-      maxWidth: widget.expand ? double.infinity : 240,
-      minHeight: 28,
-    ),
-    child: TextField(
-      controller: widget.controller ?? _internal,
-      enabled: widget.enabled,
-      autofocus: widget.autofocus,
-      keyboardType: widget.keyboardType,
-      maxLines: widget.maxLines,
-      textInputAction: widget.maxLines != 1
-          ? TextInputAction.newline
-          : TextInputAction.done,
-      onSubmitted: widget.onSubmitted,
-      onChanged: widget.onChanged,
-      style: (widget.mono ? traeworkMono : traeworkText)(
-        size: TraeWorkFontSizes.bodyBase,
-        color: widget.enabled
-            ? TraeWorkColors.textDefault
-            : TraeWorkColors.textDisabled,
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: widget.expand ? double.infinity : 240,
+        minHeight: 28,
       ),
-      decoration: InputDecoration(
-        labelText: widget.label,
-        hintText: widget.placeholder,
-        errorText: widget.errorText,
-        suffixIcon: widget.suffixIcon,
-        suffixIconConstraints: const BoxConstraints.tightFor(
-          width: 28,
-          height: 28,
+      child: TextField(
+        controller: widget.controller ?? _internal,
+        enabled: widget.enabled,
+        autofocus: widget.autofocus,
+        keyboardType: widget.keyboardType,
+        maxLines: widget.maxLines,
+        textInputAction: widget.maxLines != 1
+            ? TextInputAction.newline
+            : TextInputAction.done,
+        onSubmitted: widget.onSubmitted,
+        onChanged: widget.onChanged,
+        style: (widget.mono ? traeworkMono : traeworkText)(
+          size: TraeWorkFontSizes.bodyBase,
+          color: widget.enabled
+              ? colors.onSurface
+              : colors.onSurface.withValues(alpha: 0.38),
         ),
-        fillColor: widget.enabled
-            ? TraeWorkColors.bgBaseDefault
-            : TraeWorkColors.bgBaseSecondary,
+        decoration: InputDecoration(
+          labelText: widget.label,
+          hintText: widget.placeholder,
+          errorText: widget.errorText,
+          suffixIcon: widget.suffixIcon,
+          suffixIconConstraints: const BoxConstraints.tightFor(
+            width: 28,
+            height: 28,
+          ),
+          fillColor: widget.enabled
+              ? colors.surfaceContainerLowest
+              : colors.surfaceContainer,
+        ),
+        cursorColor: colors.primary,
       ),
-      cursorColor: TraeWorkColors.bgBrand,
-    ),
-  );
+    );
+  }
 }
 
 /// 菜单共用触发器：统一悬停、键盘操作及弹出位置行为。
@@ -551,11 +554,11 @@ class DsSelect<T> extends StatelessWidget {
                 height: 28,
                 child: Container(
                   width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: TraeWorkColors.bgBaseSecondary,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
                     border: Border(
                       left: BorderSide(
-                        color: TraeWorkColors.borderBrand,
+                        color: Theme.of(context).colorScheme.primary,
                         width: 2,
                       ),
                     ),
@@ -567,7 +570,7 @@ class DsSelect<T> extends StatelessWidget {
                   child: DefaultTextStyle.merge(
                     style: traeworkText(
                       size: TraeWorkFontSizes.bodySm,
-                      color: TraeWorkColors.textSecondary,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       weight: FontWeight.w600,
                     ),
                     child: items[index].child,
@@ -581,7 +584,7 @@ class DsSelect<T> extends StatelessWidget {
                 child: DefaultTextStyle.merge(
                   style: TextStyle(
                     color: items[index].value == value
-                        ? TraeWorkColors.textBrand
+                        ? Theme.of(context).colorScheme.primary
                         : null,
                     fontWeight: items[index].value == value
                         ? FontWeight.w600
@@ -606,8 +609,10 @@ class DsSelect<T> extends StatelessWidget {
                   style: traeworkText(
                     size: TraeWorkFontSizes.bodyBase,
                     color: effectiveEnabled
-                        ? TraeWorkColors.textDefault
-                        : TraeWorkColors.textDisabled,
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.38),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -635,25 +640,24 @@ class DsCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(TraeWorkSpacers.s12),
-    this.background = TraeWorkColors.bgBaseDefault,
+    this.background,
     this.border = true,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
-  final Color background;
+  final Color? background;
   final bool border;
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: background,
+        color: background ?? colors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(TraeWorkRadius.r8),
-        border: border
-            ? Border.all(color: TraeWorkColors.borderNeutralL1)
-            : null,
+        border: border ? Border.all(color: colors.outlineVariant) : null,
       ),
       child: child,
     );
@@ -670,7 +674,7 @@ class DsDivider extends StatelessWidget {
     return Container(
       width: vertical ? 1 : double.infinity,
       height: vertical ? double.infinity : 1,
-      color: TraeWorkColors.borderNeutralL1,
+      color: Theme.of(context).colorScheme.outlineVariant,
     );
   }
 }

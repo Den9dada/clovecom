@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
@@ -35,6 +36,8 @@ class Peer {
   final List<int> completed = [];
   bool cancelled = false;
   bool writeSucceeds = true;
+  Completer<bool>? pendingWrite;
+  int reads = 0;
   void enqueue(List<int> data, {int fragmentSize = 99999}) {
     for (var i = 0; i < data.length; i += fragmentSize) {
       incoming.add(
@@ -53,9 +56,10 @@ class Peer {
     isCancelled: () => cancelled,
     onWrite: (data, timeout) {
       writes.add(Uint8List.fromList(data));
-      return writeSucceeds;
+      return pendingWrite?.future ?? Future.value(writeSucceeds);
     },
     onWaitByte: (timeout) async {
+      reads++;
       if (incoming.isEmpty) {
         cancelled = true;
         return null;
@@ -75,6 +79,91 @@ class Peer {
 }
 
 void main() {
+  test('协议私有输入超出64KiB时明确失败，不保留无界粘包余量', () async {
+    final dir = await Directory.systemTemp.createTemp('ymodem_budget_');
+    addTearDown(() => dir.delete(recursive: true));
+    final peer = Peer()..enqueue(List.filled(65537, 1));
+    await YmodemProtocol().receive(
+      savePath: '${dir.path}/bounded.bin',
+      callbacks: peer.callbacks(),
+    );
+    expect(peer.errors.single, contains('预算'));
+    expect(peer.completed, isEmpty);
+  });
+  test('未知长度接收只去除真正末尾填充，中间整块1A数据仍保留', () async {
+    final dir = await Directory.systemTemp.createTemp('ymodem_unknown_');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/unknown.bin');
+    final peer = Peer()
+      ..enqueue([
+        ...packet(0, [...ascii.encode('unknown.bin'), 0]),
+        ...packet(1, [1]),
+        ...packet(2, List.filled(128, 0x1a)),
+        ...packet(3, [9]),
+        4,
+        4,
+        ...packet(0, List.filled(128, 0)),
+      ]);
+    await YmodemProtocol().receive(
+      savePath: file.path,
+      callbacks: peer.callbacks(),
+    );
+    expect(peer.completed, [257]);
+    expect(await file.readAsBytes(), [1, ...List.filled(255, 0x1a), 9]);
+  });
+  test('接收数据块确认前已追加到文件，不把整份文件积存在内存中', () async {
+    final dir = await Directory.systemTemp.createTemp('ymodem_streaming_');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/stream.bin');
+    final peer = Peer()
+      ..enqueue([
+        ...packet(0, [...ascii.encode('stream.bin'), 0, 51, 0]),
+        ...packet(1, [1, 2, 3]),
+        4,
+        4,
+        ...packet(0, List.filled(128, 0)),
+      ]);
+    final original = peer.callbacks();
+    var acknowledgements = 0;
+    final observedLengths = <int>[];
+    final cb = TransferCallbacks(
+      onProgress: original.onProgress,
+      onLog: original.onLog,
+      onError: original.onError,
+      onComplete: original.onComplete,
+      onWaitByte: original.onWaitByte,
+      onWaitData: original.onWaitData,
+      isCancelled: original.isCancelled,
+      onWrite: (bytes, timeout) async {
+        if (bytes.single == 6 && ++acknowledgements == 2) {
+          observedLengths.add(await file.length());
+        }
+        return original.onWrite(bytes, timeout);
+      },
+    );
+    await YmodemProtocol().receive(savePath: file.path, callbacks: cb);
+    expect(observedLengths, [3]);
+    expect(peer.completed, [3]);
+  });
+  test('发送等待真实写完成后才读取下一次应答', () async {
+    final gate = Completer<bool>();
+    final peer = Peer()
+      ..enqueue([0x43])
+      ..pendingWrite = gate;
+    final running = YmodemProtocol().send(
+      Uint8List.fromList([1]),
+      packetSize: 1024,
+      intervalMs: 1,
+      callbacks: peer.callbacks(),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(peer.writes, hasLength(1));
+    expect(peer.reads, 1);
+    gate.complete(false);
+    await running;
+    expect(peer.completed, isEmpty);
+    expect(peer.errors.single, contains('写入失败'));
+  });
   late Directory temp;
   setUp(
     () async =>

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../theme/traework_theme.dart';
 
@@ -45,63 +45,78 @@ class _DsInteractionState extends State<DsInteraction> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isDark = colors.brightness == Brightness.dark;
     final enabled = widget.onTap != null;
     final brand = widget.variant == DsInteractionVariant.brand;
     final danger = widget.variant == DsInteractionVariant.danger;
     final secondary = widget.variant == DsInteractionVariant.secondary;
+    final disabledFg = colors.onSurface.withValues(alpha: 0.38);
+    final brandHover = Color.lerp(
+      colors.primary,
+      Colors.white,
+      isDark ? 0.14 : 0.12,
+    )!;
+    final brandPressed = Color.lerp(
+      colors.primary,
+      Colors.black,
+      isDark ? 0.16 : 0.14,
+    )!;
+    final overlayHover = colors.onSurface.withValues(alpha: isDark ? 0.10 : 0.08);
+    final overlayPress = colors.onSurface.withValues(alpha: isDark ? 0.16 : 0.14);
+
     final foreground = !enabled
-        ? TraeWorkColors.textDisabled
+        ? disabledFg
         : brand
-        ? TraeWorkColors.textOnBrand
+        ? colors.onPrimary
         : danger
-        ? TraeWorkColors.statusError
-        : (widget.selected && !widget.selectionBorderOnly) ||
-              widget.variant == DsInteractionVariant.text
-        ? TraeWorkColors.textBrand
-        : TraeWorkColors.textSecondary;
+        ? colors.error
+        : (widget.selected && !widget.selectionBorderOnly)
+        ? colors.onPrimaryContainer
+        : widget.variant == DsInteractionVariant.text
+        ? colors.primary
+        : colors.onSurface;
     final base = brand
-        ? (widget.selected
-              ? TraeWorkColors.bgBrandActive
-              : TraeWorkColors.bgBrand)
+        ? (widget.selected ? brandPressed : colors.primary)
         : widget.selected
-        ? TraeWorkColors.bgBrandPopup
+        ? colors.primaryContainer
         : danger
-        ? TraeWorkColors.statusError.withValues(alpha: 0.06)
+        ? colors.error.withValues(alpha: 0.06)
         : secondary
-        ? TraeWorkColors.bgBaseDefault
+        ? colors.surfaceContainerLowest
         : Colors.transparent;
     final background = !enabled
         ? (brand || secondary || danger
-              ? TraeWorkColors.bgBaseSecondary
+              ? colors.surfaceContainer
               : Colors.transparent)
         : brand
         ? (_pressed
-              ? TraeWorkColors.bgBrandActive
+              ? brandPressed
               : _hover
-              ? TraeWorkColors.bgBrandHover
+              ? brandHover
               : base)
         : Color.alphaBlend(
             _pressed
                 ? (danger
-                      ? TraeWorkColors.statusError.withValues(alpha: 0.16)
-                      : TraeWorkColors.bgOverlay3)
+                      ? colors.error.withValues(alpha: 0.16)
+                      : overlayPress)
                 : _hover
                 ? (danger
-                      ? TraeWorkColors.statusError.withValues(alpha: 0.08)
-                      : TraeWorkColors.bgOverlay2)
+                      ? colors.error.withValues(alpha: 0.08)
+                      : overlayHover)
                 : Colors.transparent,
             base,
           );
     final border = enabled && (_focused || widget.selected)
-        ? TraeWorkColors.borderBrand
+        ? colors.primary
         : danger && enabled
-        ? TraeWorkColors.statusError
+        ? colors.error
         : (secondary || danger) && !enabled
-        ? TraeWorkColors.borderNeutralL2
+        ? colors.outlineVariant
         : secondary
         ? (_hover || _pressed
-              ? TraeWorkColors.borderControlHover
-              : TraeWorkColors.borderControl)
+              ? Color.lerp(colors.outline, colors.onSurface, 0.35)!
+              : colors.outline)
         : Colors.transparent;
     return Semantics(
       enabled: enabled,
@@ -177,10 +192,10 @@ class DsSwitch extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               color: onChanged == null
-                  ? TraeWorkColors.bgBaseTertiary
+                  ? Theme.of(context).colorScheme.surfaceContainerHighest
                   : value
-                  ? TraeWorkColors.bgBrand
-                  : TraeWorkColors.borderNeutralL3,
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.outline,
             ),
             child: AnimatedAlign(
               duration: const Duration(milliseconds: 120),
@@ -192,8 +207,8 @@ class DsSwitch extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: onChanged == null
-                      ? TraeWorkColors.bgBaseSecondary
-                      : Colors.white,
+                      ? Theme.of(context).colorScheme.surfaceContainer
+                      : Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
             ),
@@ -240,10 +255,10 @@ class DsRadioChoice extends StatelessWidget {
           Icon(
             selected ? Icons.radio_button_checked : Icons.radio_button_off,
             color: onTap == null
-                ? TraeWorkColors.iconDisabled
+                ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38)
                 : selected
-                ? TraeWorkColors.iconBrand
-                : TraeWorkColors.iconTertiary,
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 6),
           Text(label),

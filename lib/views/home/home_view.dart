@@ -1,20 +1,32 @@
+import '../../src/application/app_update.dart';
+import '../../src/application/communication_runtime.dart';
+
 import 'dart:io';
-import 'package:flutter/material.dart';
+
+import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
+
 import '../../services/protocol_library.dart';
 import '../../ui/controllers/app_controller.dart';
+import '../../ui/layout/responsive.dart';
 import '../../ui/pages/protocol_editor_page.dart';
 import '../../widgets/desktop_title_bar.dart';
 import '../../services/status_bar_service.dart';
 import '../serial_port/serial_port_view.dart';
-import '../firmware_upgrade/firmware_upgrade_view.dart';
-import '../usb/usb_view.dart';
-import '../network/network_view.dart';
 import '../toolbox/toolbox_view.dart';
 import '../i2c_tool/i2c_tool_view.dart';
 
 class HomeView extends StatefulWidget {
-  const HomeView({super.key});
+  const HomeView({
+    super.key,
+    this.communication,
+    this.updateController,
+    this.onExitForUpdate,
+  });
+
+  final CommunicationRuntime? communication;
+  final AppUpdateController? updateController;
+  final Future<void> Function()? onExitForUpdate;
 
   @override
   State<HomeView> createState() => _HomeViewState();
@@ -22,7 +34,7 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
   int _currentIndex = 0;
-  bool _navigationExpanded = true;
+  bool? _navigationExpanded;
   final _protocolLibrary = ProtocolLibrary();
   late final _protocolController = AppController(_protocolLibrary);
   bool _protocolReady = false;
@@ -53,22 +65,11 @@ class _HomeViewState extends State<HomeView> {
     super.dispose();
   }
 
-  static const _labels = [
-    '串口通信',
-    'USB通信',
-    '网络通信',
-    '工具箱',
-    'CH34x调试',
-    '固件升级',
-    '协议编辑',
-  ];
+  static const _labels = ['接口通信', '工具箱', 'CH34x调试', '协议编辑'];
   static const _icons = [
-    Icons.settings_input_component_outlined,
-    Icons.usb_outlined,
-    Icons.lan_outlined,
+    Icons.device_hub,
     Icons.handyman_outlined,
     Icons.memory_outlined,
-    Icons.system_update_outlined,
     Icons.schema_outlined,
   ];
 
@@ -79,32 +80,32 @@ class _HomeViewState extends State<HomeView> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final expanded =
-              _navigationExpanded &&
-              constraints.maxWidth >= 1280 &&
-              constraints.maxHeight >= 720;
+              _navigationExpanded ??
+              appDensityFor(constraints.biggest) != AppLayoutDensity.compact;
           return Column(
             children: [
               DesktopTitleBar(
                 navigationExpanded: expanded,
-                onMenu: () =>
-                    setState(() => _navigationExpanded = !_navigationExpanded),
+                onMenu: () => setState(() => _navigationExpanded = !expanded),
+                updateController: widget.updateController,
+                onExitForUpdate: widget.onExitForUpdate,
               ),
               Expanded(
                 child: Row(
                   children: [
-                    Container(
-                      width: expanded ? 200 : 56,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceContainerLow,
-                        border: Border(
-                          right: BorderSide(color: colors.outlineVariant),
+                    if (expanded)
+                      Container(
+                        width: AppWindowMetrics.navWidth,
+                        decoration: BoxDecoration(
+                          color: colors.surfaceContainerLow,
+                          border: Border(
+                            right: BorderSide(color: colors.outlineVariant),
+                          ),
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const SizedBox(height: 16),
-                          if (expanded)
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const SizedBox(height: 16),
                             Padding(
                               padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
                               child: Text(
@@ -115,14 +116,13 @@ class _HomeViewState extends State<HomeView> {
                                 ),
                               ),
                             ),
-                          for (
-                            var index = 0;
-                            index < _labels.length;
-                            index++
-                          ) ...[
-                            if (index == 3) ...[
-                              const SizedBox(height: 16),
-                              if (expanded)
+                            for (
+                              var index = 0;
+                              index < _labels.length;
+                              index++
+                            ) ...[
+                              if (index == 1) ...[
+                                const SizedBox(height: 16),
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(
                                     20,
@@ -138,14 +138,12 @@ class _HomeViewState extends State<HomeView> {
                                     ),
                                   ),
                                 ),
-                            ],
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              child: Tooltip(
-                                message: expanded ? '' : _labels[index],
+                              ],
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 child: Material(
                                   color: index == _currentIndex
                                       ? colors.primary.withValues(alpha: 0.09)
@@ -158,12 +156,8 @@ class _HomeViewState extends State<HomeView> {
                                     child: SizedBox(
                                       height: 36,
                                       child: Row(
-                                        mainAxisAlignment: expanded
-                                            ? MainAxisAlignment.start
-                                            : MainAxisAlignment.center,
                                         children: [
-                                          if (expanded)
-                                            const SizedBox(width: 12),
+                                          const SizedBox(width: 12),
                                           Icon(
                                             _icons[index],
                                             size: 17,
@@ -171,32 +165,27 @@ class _HomeViewState extends State<HomeView> {
                                                 ? colors.primary
                                                 : colors.onSurfaceVariant,
                                           ),
-                                          if (expanded) ...[
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              _labels[index],
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight:
-                                                    index == _currentIndex
-                                                    ? FontWeight.w600
-                                                    : FontWeight.w400,
-                                                color: index == _currentIndex
-                                                    ? colors.primary
-                                                    : colors.onSurface,
-                                              ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            _labels[index],
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: index == _currentIndex
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w400,
+                                              color: index == _currentIndex
+                                                  ? colors.primary
+                                                  : colors.onSurface,
                                             ),
-                                          ],
+                                          ),
                                         ],
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                          const Spacer(),
-                          if (expanded)
+                            ],
+                            const Spacer(),
                             Padding(
                               padding: const EdgeInsets.all(20),
                               child: Text(
@@ -207,24 +196,23 @@ class _HomeViewState extends State<HomeView> {
                                 ),
                               ),
                             ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
                     Expanded(
+                      key: const ValueKey('home-content'),
                       child: Column(
                         children: [
                           Expanded(
                             child: IndexedStack(
                               index: _currentIndex,
                               children: [
-                                SerialPortView(),
-                                UsbView(),
-                                NetworkView(),
-                                ToolboxView(),
-                                I2cToolView(),
-                                FirmwareUpgradeView(
+                                SerialPortView(
+                                  runtime: widget.communication,
                                   protocolLibrary: _protocolLibrary,
                                 ),
+                                ToolboxView(),
+                                I2cToolView(),
                                 _protocolReady
                                     ? ProtocolEditorPage(
                                         controller: _protocolController,
@@ -307,9 +295,8 @@ class _StatusBarWidgetState extends State<_StatusBarWidget> {
           Expanded(
             child: Text(
               info.text,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: info.color ?? colorScheme.onSurfaceVariant,
-              ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: info.color ?? colorScheme.onSurfaceVariant),
               overflow: TextOverflow.ellipsis,
             ),
           ),

@@ -1,7 +1,7 @@
 import 'package:clovecom/widgets/app_dropdown.dart';
 // 公共设备连接栏 — 设备选择/刷新/速率/连接
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../viewmodels/ch341/i2c_tool_viewmodel.dart';
 
 class I2cDeviceBar extends StatelessWidget {
@@ -186,12 +186,12 @@ class I2cDeviceBar extends StatelessWidget {
                       vm.connect(idx);
                     },
               icon: vm.isConnecting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onPrimary,
                       ),
                     )
                   : const Icon(Icons.link, size: 16),

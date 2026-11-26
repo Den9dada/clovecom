@@ -1,6 +1,6 @@
 // 寄存器列表 — StatefulWidget 确保 itemBuilder 引用稳定（避免闭包重建）
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../models/i2c_register_map.dart';
 
 class I2cRegisterList extends StatefulWidget {

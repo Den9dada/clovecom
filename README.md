@@ -78,7 +78,7 @@ lib/
 
 ## 串口通信模块
 
-串口模块由 `SerialPortView`、`SerialPortViewModel` 和 `serial_port_model.dart` 中的数据模型组成。
+接口通信工作台通过右侧会话列表管理串口和网卡连接。打开会话并连接后，标签页可定向收发、记录数据和运行串口协议任务。
 
 ### 功能范围
 
@@ -95,7 +95,7 @@ lib/
 
 ### 串口读取实现
 
-项目没有完全依赖 `serial_port_win32` 的读取回调，而是在 `SerialPortViewModel` 中使用 `ffi` 和 `win32` 调用 Win32 API：
+项目没有完全依赖 `serial_port_win32` 的读取回调，而是在串口底层驱动中使用 `ffi` 和 `win32` 调用 Win32 API：
 
 - `ClearCommError` 查询接收缓冲区可读字节数。
 - `ReadFile` 配合 `OVERLAPPED` 结构执行异步读取。
@@ -109,7 +109,7 @@ lib/
 
 - 数据发送：发送文本或 HEX 输入。
 - 文件发送：选择任意文件，通过协议层按配置发送。
-- 固件升级：选择 `.bin` 固件，选择在协议编辑页保存的 Lua 交互协议后自动载入一次，再执行升级。分块、超时和重试参数均在脚本中配置。
+- 固件升级：在串口会话的发送配置菜单中打开升级窗口，选择固件和在协议编辑页保存的 Lua 交互协议。分块、超时和重试参数由脚本定义。
 
 固件脚本通过 JSON 行协议和主进程交互：
 
@@ -295,7 +295,7 @@ test/
 
 ### 环境要求
 
-- Flutter SDK：匹配 `pubspec.yaml` 中 `environment.sdk`，当前为 Dart `^3.10.1`。
+- Flutter SDK：3.50.1 或更高版本，Dart SDK：3.14.0 或更高的 3.x 版本。
 - 操作系统：当前主要支持 Windows 桌面端。
 - 串口功能：需要目标电脑安装对应 USB 转串口芯片驱动。
 

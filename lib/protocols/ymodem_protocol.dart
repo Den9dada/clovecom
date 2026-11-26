@@ -74,12 +74,22 @@ class YmodemProtocol implements TransferProtocol {
     return null;
   }
 
-  bool _wr(int b, TransferCallbacks cb) =>
-      cb.onWrite(Uint8List.fromList([b]), 500);
+  Future<bool> _wr(int b, TransferCallbacks cb) async {
+    if (cb.isCancelled()) return false;
+    final result = await cb.onWrite(Uint8List.fromList([b]), 500);
+    return !cb.isCancelled() && result;
+  }
 
   /// 发送数据包，失败时自动报告错误
-  bool _wrPacket(Uint8List pkt, TransferCallbacks cb, int timeoutMs) {
-    if (!cb.onWrite(pkt, timeoutMs)) {
+  Future<bool> _wrPacket(
+    Uint8List pkt,
+    TransferCallbacks cb,
+    int timeoutMs,
+  ) async {
+    if (cb.isCancelled()) return false;
+    final result = await cb.onWrite(pkt, timeoutMs);
+    if (cb.isCancelled()) return false;
+    if (!result) {
       cb.onError('写入失败');
       return false;
     }
@@ -121,7 +131,12 @@ class YmodemProtocol implements TransferProtocol {
         return null;
       }
       final d = await cb.onWaitData(50);
-      if (d != null) bytes.addAll(d);
+      if (d != null) {
+        if (bytes.length + d.length > 64 * 1024) {
+          throw StateError('协议输入超出64 KiB预算，数据不完整');
+        }
+        bytes.addAll(d);
+      }
     }
     if (bytes.length < n) {
       _rxBuf.addAll(bytes);
@@ -192,7 +207,7 @@ class YmodemProtocol implements TransferProtocol {
 
         if (!hsDone) {
           cb.onLog('发文件名包...');
-          if (!_wrPacket(b0, cb, _tNormal)) return;
+          if (!await _wrPacket(b0, cb, _tNormal)) return;
           awaitC = false;
           continue;
         }
@@ -201,7 +216,7 @@ class YmodemProtocol implements TransferProtocol {
           cb.onLog('发 EOT...');
           var eotAcked = false;
           for (int e = 0; e < 2; e++) {
-            if (!_wrPacket(Uint8List.fromList([_eot]), cb, 500)) return;
+            if (!await _wrPacket(Uint8List.fromList([_eot]), cb, 500)) return;
             final r = await _rd(cb, _tShort);
             if (r == _ack) {
               eotAcked = true;
@@ -217,7 +232,7 @@ class YmodemProtocol implements TransferProtocol {
             return;
           }
           cb.onLog('发结束块...');
-          if (!_wrPacket(
+          if (!await _wrPacket(
             _pkt(_soh, 0, _sohSize, List.filled(_sohSize, 0)),
             cb,
             _tNormal,
@@ -235,7 +250,9 @@ class YmodemProtocol implements TransferProtocol {
         pend = end;
         seq = (seq + 1) & 0xFF;
         cb.onLog('发块 #$seq (${chunk.length}B)');
-        if (!_wrPacket(_pkt(_stx, seq, _stxSize, chunk), cb, _tNormal)) return;
+        if (!await _wrPacket(_pkt(_stx, seq, _stxSize, chunk), cb, _tNormal)) {
+          return;
+        }
         awaitC = false;
         nak = 0;
       } else {
@@ -273,9 +290,9 @@ class YmodemProtocol implements TransferProtocol {
           }
           cb.onLog('NAK 重发 ($nak/3)');
           if (!hsDone) {
-            if (!_wrPacket(b0, cb, _tNormal)) return;
+            if (!await _wrPacket(b0, cb, _tNormal)) return;
           } else if (off > fileSize) {
-            if (!_wrPacket(
+            if (!await _wrPacket(
               _pkt(_soh, 0, _sohSize, List.filled(_sohSize, 0)),
               cb,
               _tNormal,
@@ -283,7 +300,11 @@ class YmodemProtocol implements TransferProtocol {
               return;
             }
           } else {
-            if (!_wrPacket(_pkt(_stx, seq, _stxSize, chunk), cb, _tNormal)) {
+            if (!await _wrPacket(
+              _pkt(_stx, seq, _stxSize, chunk),
+              cb,
+              _tNormal,
+            )) {
               return;
             }
           }
@@ -304,23 +325,23 @@ class YmodemProtocol implements TransferProtocol {
     required TransferCallbacks callbacks,
   }) async {
     final cb = callbacks;
-    final sink = File(savePath).openWrite(mode: FileMode.write);
+    final sink = await File(savePath).open(mode: FileMode.write);
     _rxBuf.clear();
     var closed = false;
-    void writeControl(int byte) {
-      if (!_wr(byte, cb)) throw StateError('串口写入失败');
+    Future<void> writeControl(int byte) async {
+      if (!await _wr(byte, cb)) throw StateError('串口写入失败');
     }
 
     try {
       cb.onLog('Ymodem-1K 接收开始');
       (int, int, List<int>)? header;
       for (var attempt = 0; attempt < 10 && !cb.isCancelled(); attempt++) {
-        writeControl(_crc);
+        await writeControl(_crc);
         final first = await _readN(cb, 1, _tShort);
         if (first == null) continue;
         if (first[0] == _can) throw StateError('发送端中止传输');
         if (first[0] != _soh) {
-          writeControl(_nak);
+          await writeControl(_nak);
           continue;
         }
         final rest = await _readN(cb, 2 + _sohSize + 2, _tShort);
@@ -330,7 +351,7 @@ class YmodemProtocol implements TransferProtocol {
           header = parsed;
           break;
         }
-        writeControl(_nak);
+        await writeControl(_nak);
       }
       if (cb.isCancelled()) return;
       if (header == null) throw StateError('未收到有效文件名包');
@@ -351,34 +372,36 @@ class YmodemProtocol implements TransferProtocol {
       final expectedSize = int.tryParse(sizeText.split(' ').first);
       if (expectedSize != null && expectedSize < 0) throw StateError('文件大小无效');
       cb.onFileInfo?.call(name, expectedSize ?? 0);
-      writeControl(_ack);
-      writeControl(_crc);
+      await writeControl(_ack);
+      await writeControl(_crc);
       var sequence = 0;
       var failures = 0;
       var eotDone = false;
-      final data = <int>[];
+      var receivedBytes = 0;
+      var writtenBytes = 0;
+      var trailingPadding = 0;
       while (!cb.isCancelled() && failures < 10) {
         final first = await _readN(cb, 1, _tNormal);
         if (first == null) {
           failures++;
-          writeControl(_nak);
+          await writeControl(_nak);
           continue;
         }
         final type = first[0];
         if (type == _can) throw StateError('发送端中止传输');
         if (type == _eot) {
-          writeControl(_nak);
+          await writeControl(_nak);
           final second = await _readN(cb, 1, _tShort);
           if (second == null || second[0] != _eot) {
             throw StateError('EOT 握手未完成');
           }
-          writeControl(_ack);
+          await writeControl(_ack);
           eotDone = true;
           break;
         }
         if (type != _soh && type != _stx) {
           failures++;
-          writeControl(_nak);
+          await writeControl(_nak);
           continue;
         }
         final size = type == _stx ? _stxSize : _sohSize;
@@ -388,32 +411,49 @@ class YmodemProtocol implements TransferProtocol {
             : _parse(Uint8List.fromList([type, ...rest]));
         if (packet == null) {
           failures++;
-          writeControl(_nak);
+          await writeControl(_nak);
           continue;
         }
         if (packet.$2 == (sequence & 0xFF)) {
-          writeControl(_ack);
+          await writeControl(_ack);
           // 文件名包的重发也要继续请求数据块。
-          if (sequence == 0) writeControl(_crc);
+          if (sequence == 0) await writeControl(_crc);
           continue;
         }
         if (packet.$2 != ((sequence + 1) & 0xFF)) {
           failures++;
-          writeControl(_nak);
+          await writeControl(_nak);
           continue;
         }
-        data.addAll(packet.$3);
+        final payload = packet.$3;
+        receivedBytes += payload.length;
+        if (expectedSize == null) {
+          var padding = 0;
+          for (var i = payload.length - 1; i >= 0 && payload[i] == 0x1A; i--) {
+            padding++;
+          }
+          trailingPadding = padding == payload.length
+              ? trailingPadding + padding
+              : padding;
+        }
+        final length = expectedSize == null
+            ? payload.length
+            : (expectedSize - writtenBytes).clamp(0, payload.length);
+        if (length > 0) {
+          await sink.writeFrom(payload, 0, length);
+          writtenBytes += length;
+        }
         sequence = (sequence + 1) & 0xFF;
         failures = 0;
-        writeControl(_ack);
-        writeControl(_crc);
+        await writeControl(_ack);
+        await writeControl(_crc);
         if (expectedSize != null && expectedSize > 0) {
-          cb.onProgress((data.length / expectedSize).clamp(0, 1));
+          cb.onProgress((writtenBytes / expectedSize).clamp(0, 1));
         }
       }
       if (cb.isCancelled()) return;
       if (!eotDone) throw StateError('接收超时，传输未完成');
-      writeControl(_crc);
+      await writeControl(_crc);
       final ending = await _readN(cb, 3 + _sohSize + 2, _tShort);
       final parsedEnding = ending == null ? null : _parse(ending);
       if (parsedEnding == null ||
@@ -422,17 +462,14 @@ class YmodemProtocol implements TransferProtocol {
           parsedEnding.$3.first != 0) {
         throw StateError('未收到有效结束块');
       }
-      writeControl(_ack);
-      if (expectedSize != null && data.length < expectedSize) {
-        throw StateError('接收文件被截断: ${data.length}/$expectedSize');
+      await writeControl(_ack);
+      if (expectedSize != null && receivedBytes < expectedSize) {
+        throw StateError('接收文件被截断: $receivedBytes/$expectedSize');
       }
-      var length = expectedSize ?? data.length;
-      if (expectedSize == null) {
-        while (length > 0 && data[length - 1] == 0x1A) {
-          length--;
-        }
+      final length = expectedSize ?? receivedBytes - trailingPadding;
+      if (expectedSize == null && trailingPadding > 0) {
+        await sink.truncate(length);
       }
-      sink.add(Uint8List.fromList(data.sublist(0, length)));
       await sink.flush();
       await sink.close();
       closed = true;

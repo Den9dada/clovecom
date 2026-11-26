@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clovecom/ui/desktop_theme.dart';
+import 'package:clovecom/ui/theme/terminal_color_schemes.dart';
 
 void main() {
   test('动作禁用优先于按下和选中，危险动作不混入品牌背景', () {
@@ -53,5 +54,31 @@ void main() {
     await tester.tap(find.byType(TextButton));
     expect(calls, 0);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  test('buildDesktopTheme 适配深色主题与高亮主色对比度', () {
+    final dracula = buildDesktopTheme(
+      scheme: resolveTerminalColorScheme('dracula'),
+    );
+    expect(dracula.brightness, Brightness.dark);
+    expect(dracula.colorScheme.surface, const Color(0xff282a36));
+    expect(dracula.colorScheme.onSurface, const Color(0xfff8f8f2));
+
+    final cobalt2 = buildDesktopTheme(
+      scheme: resolveTerminalColorScheme('cobalt2'),
+    );
+    expect(cobalt2.colorScheme.primary, const Color(0xffff55ff));
+    expect(cobalt2.colorScheme.onPrimary, const Color(0xff171717));
+    expect(
+      identical(
+        buildDesktopTheme(scheme: resolveTerminalColorScheme('dracula')),
+        dracula,
+      ),
+      isTrue,
+    );
+    expect(
+      dracula.extension<TerminalThemeExtension>()?.scheme.id,
+      'dracula',
+    );
   });
 }

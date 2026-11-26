@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../services/toolbox/hex_lookup_tables.dart';
@@ -116,7 +116,7 @@ class _HexAsciiViewerState extends State<HexAsciiViewer> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final addrColor = const Color(0xFF60A5FA);
+    final addrColor = cs.primary;
     final totalLines = (widget.bytes.length / _bytesPerLine).ceil();
     final totalH = totalLines * _lineHeight;
 

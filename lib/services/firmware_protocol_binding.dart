@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../models/serial_port_model.dart';
 import '../protocol_editor.dart';
-import 'serial/serial_config_translation.dart';
 
 /// 已载入内容与协议库分离；保存新版本不会改变升级输入。
 class FirmwareProtocolBinding extends ChangeNotifier {
@@ -13,6 +11,8 @@ class FirmwareProtocolBinding extends ChangeNotifier {
   bool loading = false;
   int _request = 0;
   InteractionProtocol? get loaded => _loaded;
+  Map<String, dynamic> _configSuggestion = const {};
+  Map<String, dynamic> get configSuggestion => _configSuggestion;
   bool get hasNewVersion =>
       _loaded != null &&
       library.savedInteraction(_loaded!.id)?.digest != _loaded!.digest;
@@ -26,13 +26,7 @@ class FirmwareProtocolBinding extends ChangeNotifier {
         }
       }).toList();
 
-  Future<bool> load(
-    String id, {
-    required bool Function() locked,
-    required SerialPortConfig Function() currentConfig,
-    required bool Function() connected,
-    required void Function(SerialPortConfig) applyConfig,
-  }) async {
+  Future<bool> load(String id, {required bool Function() locked}) async {
     if (library.operation != null) throw StateError('请等待协议库保存完成');
     if (locked()) throw StateError('请先停止传输任务');
     final protocol =
@@ -61,27 +55,12 @@ class FirmwareProtocolBinding extends ChangeNotifier {
       )) {
         throw StateError('串口升级不支持网络接口初值');
       }
-      if (persistent.isNotEmpty && connected()) {
-        throw StateError('协议声明了接口参数，请先断开串口再载入');
-      }
-      final current = currentConfig();
-      final config = current.copyWith(
-        portName: persistent['serial_port'] as String?,
-        baudRate: persistent['baud_rate'] as int?,
-        dataBits: persistent['data_bits'] as int?,
-        stopBits: persistent['stop_bits'] as int?,
-        parity: SerialConfigTranslation.parityDisplayOf(
-          persistent['parity'] as String?,
-        ),
-        flowControl: SerialConfigTranslation.flowDisplayOf(
-          persistent['flow_control'] as String?,
-        ),
-      );
-      // 只在明确载入时填充一次，之后使用用户在界面上的最新配置。
-      applyConfig(config);
+      // 脚本初值只形成建议。真实参数由会话配置在完全断开后修改。
+      final suggestion = Map<String, dynamic>.unmodifiable(persistent);
       library.retain(protocol.id);
       if (_loaded != null) library.release(_loaded!.id);
       _loaded = protocol;
+      _configSuggestion = suggestion;
       return true;
     } finally {
       if (request == _request) {
@@ -96,6 +75,7 @@ class FirmwareProtocolBinding extends ChangeNotifier {
     loading = false;
     if (_loaded != null) library.release(_loaded!.id);
     _loaded = null;
+    _configSuggestion = const {};
     notifyListeners();
   }
 

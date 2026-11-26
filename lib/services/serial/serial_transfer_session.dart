@@ -13,7 +13,7 @@ class SerialTransferController {
 
   SerialTransferSession begin(
     SerialTransferKind kind, {
-    required bool Function(Uint8List, int) write,
+    required Future<bool> Function(Uint8List, int) write,
   }) {
     if (isBusy) throw StateError('已有串口传输任务，请先停止当前任务');
     final session = SerialTransferSession._(this, kind, write);
@@ -34,19 +34,22 @@ class SerialTransferSession {
   SerialTransferSession._(this._owner, this.kind, this._write);
   final SerialTransferController _owner;
   final SerialTransferKind kind;
-  final bool Function(Uint8List, int) _write;
+  final Future<bool> Function(Uint8List, int) _write;
   final Queue<int> _bytes = Queue<int>();
   final List<void Function()> _cleanup = [];
   final Completer<void> _done = Completer<void>();
   Completer<void>? _waiting;
   void Function(Uint8List)? onData;
+  int _inFlight = 0;
+  bool _finishing = false;
   bool _cancelled = false;
   bool _closed = false;
   bool _completed = false;
   bool _hasFailed = false;
   bool get completed => _completed;
   bool get hasFailed => _hasFailed;
-  bool get isActive => !_closed && identical(_owner.active, this);
+  bool get isActive =>
+      !_closed && !_finishing && identical(_owner.active, this);
   bool get isCancelled => _cancelled || hasFailed || !isActive;
   Future<void> get done => _done.future;
 
@@ -58,8 +61,17 @@ class SerialTransferSession {
     _cleanup.add(cleanup);
   }
 
-  bool write(Uint8List bytes, int timeoutMs) =>
-      isActive && !hasFailed && !completed && _write(bytes, timeoutMs);
+  Future<bool> write(Uint8List bytes, int timeoutMs) async {
+    if (!isActive || hasFailed || completed) return false;
+    _inFlight++;
+    try {
+      final succeeded = await _write(bytes, timeoutMs);
+      return isActive && !hasFailed && !completed && succeeded;
+    } finally {
+      _inFlight--;
+      if (_finishing && _inFlight == 0) _release();
+    }
+  }
 
   /// 协议只接触会话字节通道，通知不会越过会话生命周期。
   TransferCallbacks callbacks({
@@ -156,6 +168,14 @@ class SerialTransferSession {
   }
 
   void finish() {
+    if (_closed || _finishing) return;
+    _finishing = true;
+    final waiting = _waiting;
+    if (waiting != null && !waiting.isCompleted) waiting.complete();
+    if (_inFlight == 0) _release();
+  }
+
+  void _release() {
     if (_closed) return;
     _closed = true;
     if (identical(_owner._active, this)) _owner._active = null;

@@ -9,7 +9,7 @@ class TransferCallbacks {
   final Future<int?> Function(int timeoutMs) onWaitByte;
   final Future<Uint8List?> Function(int timeoutMs) onWaitData;
   final bool Function() isCancelled;
-  final bool Function(Uint8List data, int timeoutMs) onWrite;
+  final Future<bool> Function(Uint8List data, int timeoutMs) onWrite;
   final String fileName;
   final void Function(String fileName, int fileSize)? onFileInfo;
 

@@ -1,6 +1,6 @@
 // New Register 子页 — 手动创建寄存器定义并导出 Excel
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:clovecom/utils/file_picker_compat.dart';
@@ -77,10 +77,13 @@ class _I2cNewRegisterTabState extends State<I2cNewRegisterTab> {
           Expanded(
             child: _selIdx != null
                 ? _editor(_selIdx!)
-                : const Center(
+                : Center(
                     child: Text(
                       '← 选中寄存器后编辑',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
           ),
@@ -362,11 +365,14 @@ class _I2cNewRegisterTabState extends State<I2cNewRegisterTab> {
             ],
           ),
           if (r.f.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(8),
+            Padding(
+              padding: const EdgeInsets.all(8),
               child: Text(
                 '暂无位域，点击添加',
-                style: TextStyle(fontSize: 11, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             )
           else

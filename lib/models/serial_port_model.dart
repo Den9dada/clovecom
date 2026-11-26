@@ -84,7 +84,18 @@ class SerialPortMessage {
   /// 数据长度（字节数）
   final int dataLength;
 
+  final String? connectionId, peer;
+  final int epoch, sequence;
+  final bool datagram;
+  String get sourceLabel => connectionId == null
+      ? ''
+      : '[$connectionId · 轮次$epoch${peer == null ? "" : " · $peer"}] ';
   SerialPortMessage({
+    this.connectionId,
+    this.peer,
+    this.epoch = 0,
+    this.sequence = 0,
+    this.datagram = false,
     required this.data,
     this.hexData = '',
     required this.timestamp,

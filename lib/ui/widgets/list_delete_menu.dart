@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
-
-import '../theme/traework_theme.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 列表条目的删除入口；右键只打开菜单，不改变当前选中项。
 class ListDeleteMenu extends StatelessWidget {
@@ -26,7 +24,7 @@ class ListDeleteMenu extends StatelessWidget {
           point & Size.zero,
           Offset.zero & overlay.size,
         ),
-        items: const [
+        items: [
           PopupMenuItem(
             value: true,
             child: Row(
@@ -34,10 +32,13 @@ class ListDeleteMenu extends StatelessWidget {
                 Icon(
                   Icons.delete_outline,
                   size: 16,
-                  color: TraeWorkColors.statusError,
+                  color: Theme.of(context).colorScheme.error,
                 ),
-                SizedBox(width: 8),
-                Text('删除', style: TextStyle(color: TraeWorkColors.statusError)),
+                const SizedBox(width: 8),
+                Text(
+                  '删除',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ],
             ),
           ),

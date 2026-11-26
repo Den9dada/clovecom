@@ -1,6 +1,6 @@
 // 芯片配置信息卡片
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../models/i2c_register_map.dart';
 
 class I2cChipConfigCard extends StatelessWidget {

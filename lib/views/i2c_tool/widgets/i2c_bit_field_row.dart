@@ -2,7 +2,7 @@
 //
 // 单行位域显示和编辑：位范围、字段名、权限、物理值解读、编辑输入框
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../models/i2c_register_map.dart';
 
 class I2cBitFieldRow extends StatefulWidget {

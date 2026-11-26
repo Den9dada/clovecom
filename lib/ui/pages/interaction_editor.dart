@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import '../../protocol_editor.dart';
 import '../widgets/ds_toast.dart';
@@ -216,12 +216,13 @@ class _InteractionEditorState extends State<InteractionEditor> {
     final width = Responsive.densityOf(context) == AppLayoutDensity.compact
         ? 220.0
         : 260.0;
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: width,
-      decoration: const BoxDecoration(
-        color: TraeWorkColors.bgBaseSecondary,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
         border: Border(
-          right: BorderSide(color: TraeWorkColors.borderNeutralL1),
+          right: BorderSide(color: colors.outlineVariant),
         ),
       ),
       child: Column(
@@ -317,7 +318,7 @@ class _InteractionEditorState extends State<InteractionEditor> {
                               d.runnable ? Icons.code : Icons.warning_amber,
                               size: 16,
                               color: d.runnable
-                                  ? TraeWorkColors.iconTertiary
+                                  ? colors.onSurfaceVariant
                                   : TraeWorkColors.statusWarning,
                             ),
                             const SizedBox(width: 8),
@@ -333,8 +334,8 @@ class _InteractionEditorState extends State<InteractionEditor> {
                                       size: 13,
                                       weight: FontWeight.w500,
                                       color: d.id == _selected
-                                          ? TraeWorkColors.textBrand
-                                          : TraeWorkColors.textDefault,
+                                          ? colors.primary
+                                          : colors.onSurface,
                                     ),
                                   ),
                                   Text(
@@ -345,7 +346,7 @@ class _InteractionEditorState extends State<InteractionEditor> {
                                         : '待校验 / 不可运行',
                                     style: traeworkText(
                                       size: 11,
-                                      color: TraeWorkColors.textTertiary,
+                                      color: colors.onSurfaceVariant,
                                     ),
                                   ),
                                 ],
@@ -424,30 +425,35 @@ class _InteractionEditorState extends State<InteractionEditor> {
       const SizedBox(width: 6),
       Text(
         'UTF-8 · Lua 5.4 · 保存后需在使用页重新载入',
-        style: traeworkText(size: 11, color: TraeWorkColors.textTertiary),
+        style: traeworkText(
+          size: 11,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     ],
   );
 
-  Widget _findPanel(double maxWidth) => Container(
-    key: const ValueKey('interaction-find-panel'),
-    decoration: BoxDecoration(
-      color: TraeWorkColors.bgBaseDefault.withValues(alpha: 0.97),
-      border: Border.all(color: TraeWorkColors.borderNeutralL2),
-      borderRadius: BorderRadius.circular(6),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x1F000000),
-          blurRadius: 12,
-          offset: Offset(0, 3),
-        ),
-      ],
-    ),
-    child: Stack(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
+  Widget _findPanel(double maxWidth) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('interaction-find-panel'),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLowest.withValues(alpha: 0.97),
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F000000),
+            blurRadius: 12,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
             children: [
               Row(
                 children: [
@@ -529,7 +535,8 @@ class _InteractionEditorState extends State<InteractionEditor> {
         ),
       ],
     ),
-  );
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Column(
@@ -597,6 +604,7 @@ class _InteractionEditorState extends State<InteractionEditor> {
     final noScrollbars = ScrollConfiguration.of(
       context,
     ).copyWith(scrollbars: false);
+    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.all(8),
       child: ListenableBuilder(
@@ -604,9 +612,7 @@ class _InteractionEditorState extends State<InteractionEditor> {
         builder: (context, child) => DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(
-              color: _focus.hasFocus
-                  ? TraeWorkColors.borderBrand
-                  : TraeWorkColors.borderControl,
+              color: _focus.hasFocus ? colors.primary : colors.outline,
             ),
             borderRadius: BorderRadius.circular(6),
           ),
@@ -617,9 +623,9 @@ class _InteractionEditorState extends State<InteractionEditor> {
           children: [
             Container(
               width: math.max(45, '$lineCount'.length * 8.5 + 16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(
-                  right: BorderSide(color: TraeWorkColors.borderNeutralL1),
+                  right: BorderSide(color: colors.outlineVariant),
                 ),
               ),
               child: ScrollConfiguration(
@@ -635,10 +641,10 @@ class _InteractionEditorState extends State<InteractionEditor> {
                         (i) => TextSpan(
                           text: '${i + 1}${i < lineCount - 1 ? '\n' : ''}',
                           style: i + 1 == _activeLine
-                              ? const TextStyle(
-                                  color: TraeWorkColors.textBrand,
+                              ? TextStyle(
+                                  color: colors.primary,
                                   fontWeight: FontWeight.w600,
-                                  backgroundColor: TraeWorkColors.bgBrandPopup,
+                                  backgroundColor: colors.primaryContainer,
                                 )
                               : null,
                         ),
@@ -646,11 +652,11 @@ class _InteractionEditorState extends State<InteractionEditor> {
                     ),
                     key: const ValueKey('interaction-line-numbers'),
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Consolas',
                       fontSize: 14,
                       height: 1.5,
-                      color: TraeWorkColors.textTertiary,
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -759,10 +765,12 @@ class _InteractionEditorState extends State<InteractionEditor> {
                 left: 0,
                 right: 0,
                 height: lineHeight,
-                child: const IgnorePointer(
+                child: IgnorePointer(
                   child: ColoredBox(
-                    key: ValueKey('interaction-hover-line'),
-                    color: TraeWorkColors.bgOverlay1,
+                    key: const ValueKey('interaction-hover-line'),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.06),
                   ),
                 ),
               ),
@@ -822,8 +830,8 @@ class _InteractionEditorState extends State<InteractionEditor> {
                                 ),
                                 child: Text(
                                   '$error',
-                                  style: const TextStyle(
-                                    color: TraeWorkColors.statusError,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
                                   ),
                                 ),
                                 onTap: () {

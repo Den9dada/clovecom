@@ -1,6 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:window_manager/window_manager.dart';
+
+import '../src/application/app_update.dart';
+import '../ui/theme/app_theme_controller.dart';
+import '../ui/widgets/app_update_dialog.dart';
 
 /// 无 logo 标题栏：菜单与窗口按钮独立于拖动区域。
 class DesktopTitleBar extends StatefulWidget {
@@ -8,10 +12,14 @@ class DesktopTitleBar extends StatefulWidget {
     super.key,
     required this.navigationExpanded,
     required this.onMenu,
+    this.updateController,
+    this.onExitForUpdate,
   });
 
   final bool navigationExpanded;
   final VoidCallback onMenu;
+  final AppUpdateController? updateController;
+  final Future<void> Function()? onExitForUpdate;
 
   @override
   State<DesktopTitleBar> createState() => _DesktopTitleBarState();
@@ -19,6 +27,7 @@ class DesktopTitleBar extends StatefulWidget {
 
 class _DesktopTitleBarState extends State<DesktopTitleBar> with WindowListener {
   bool _maximized = false;
+  final _themeMenu = MenuController();
   bool get _desktop =>
       !kIsWeb &&
       {
@@ -110,6 +119,45 @@ class _DesktopTitleBarState extends State<DesktopTitleBar> with WindowListener {
               child: const SizedBox.expand(),
             ),
           ),
+          if (widget.updateController case final updateController?) ...[
+            AppUpdateButton(
+              controller: updateController,
+              onExit: widget.onExitForUpdate ?? () async {},
+            ),
+            IconButton(
+              key: const ValueKey('app-update-check-button'),
+              tooltip: '检查更新',
+              icon: const Icon(Icons.system_update_alt, size: 17),
+              onPressed: () => showAppUpdateDialog(
+                context,
+                controller: updateController,
+                onExitForUpdate: widget.onExitForUpdate,
+              ),
+            ),
+          ],
+          if (AppThemeScope.maybeOf(context) case final appTheme?)
+            MenuAnchor(
+              controller: _themeMenu,
+              style: const MenuStyle(
+                maximumSize: WidgetStatePropertyAll(Size(double.infinity, 400)),
+              ),
+              menuChildren: buildThemeMenuChildren(
+                current: appTheme.scheme,
+                onSelect: appTheme.select,
+              ),
+              child: IconButton(
+                key: const ValueKey('app-theme-button'),
+                tooltip: '应用主题：${appTheme.scheme.name}',
+                icon: const Icon(Icons.palette_outlined, size: 17),
+                onPressed: () {
+                  if (_themeMenu.isOpen) {
+                    _themeMenu.close();
+                  } else {
+                    _themeMenu.open();
+                  }
+                },
+              ),
+            ),
           if (_desktop) ...[
             _windowButton(
               '最小化',

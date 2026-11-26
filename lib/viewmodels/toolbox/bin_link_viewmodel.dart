@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:clovecom/utils/file_picker_compat.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../models/toolbox/bin_link_segment.dart';
 import '../../services/toolbox/bin_link_service.dart';

@@ -4,7 +4,8 @@ import 'dart:typed_data';
 import '../../models/serial_port_model.dart';
 import 'serial_byte_transport.dart';
 
-/// 连接所有者：按物理串口独占租约，跨页面/跨 ViewModel 仲裁同一端口的借用。
+/// 遗留单连接租约适配器，保留既有异步关闭契约与兼容测试。
+/// 当前应用由 CommunicationRuntime 唯一仲裁物理连接，新代码不从此处打开。
 ///
 /// 深模块：调用方只需 [open]（或注入工厂的 [acquire]）一个接口；租约登记、
 /// 占用拒绝（不排队）、随 close 释放、防误释新租约等不变量全部内化。
@@ -15,7 +16,7 @@ import 'serial_byte_transport.dart';
 class SerialConnectionOwner {
   SerialConnectionOwner();
 
-  /// 应用级单例：串口页与固件升级页共用同一所有者，跨页独占得以成立。
+  /// 遗留入口；当前应用页面均使用根组件注入的 CommunicationRuntime。
   static final SerialConnectionOwner instance = SerialConnectionOwner();
 
   final Map<String, _LeasedTransport> _leases = {};
@@ -51,28 +52,45 @@ class SerialConnectionOwner {
   }
 }
 
-/// 租约传输：委托字节通道，close 时先释放租约再关闭内层传输。
+/// 租约传输：底层关闭和在途写都结束后才释放租约。
 class _LeasedTransport implements SerialByteTransport {
   _LeasedTransport(this._owner, this._port, this._inner);
   final SerialConnectionOwner _owner;
   final String _port;
   final SerialByteTransport _inner;
   bool _released = false;
+  Future<void>? _closing;
+  final Set<Future<void>> _writes = {};
 
   @override
   Stream<Uint8List> get chunks => _inner.chunks;
 
   @override
-  bool send(Uint8List bytes, int timeoutMs) => _inner.send(bytes, timeoutMs);
+  Future<SerialWriteResult> send(Uint8List bytes, int timeoutMs) async {
+    if (_released) return SerialWriteResult.failure('串口正在关闭', acceptedBytes: 0);
+    final finished = Completer<void>();
+    _writes.add(finished.future);
+    try {
+      final result = await _inner.send(bytes, timeoutMs);
+      await result.settled;
+      return result;
+    } finally {
+      _writes.remove(finished.future);
+      finished.complete();
+    }
+  }
 
   @override
   void purge() => _inner.purge();
 
   @override
-  void close() {
-    if (_released) return;
+  Future<void> close() => _closing ??= _close();
+
+  Future<void> _close() async {
     _released = true;
+    // 关闭须发起底层取消；完成证明与在途写都满足后才释放租约。
+    await _inner.close();
+    await Future.wait(_writes.toList());
     _owner._release(_port, this);
-    _inner.close();
   }
 }

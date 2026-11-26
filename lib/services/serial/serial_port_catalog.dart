@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:serial_port_win32/serial_port_win32.dart';
+
 import '../../models/serial_port_model.dart';
+import 'win32_serial_scan.dart';
 
 class SerialPortScan {
   SerialPortScan(List<PortDetailInfo> devices, {this.warning})
@@ -14,6 +18,14 @@ class SerialPortScan {
 
 /// 原生通知常驻应用；页面取消订阅不会撤销底层消息处理器。
 class SerialPortCatalog {
+  const SerialPortCatalog({
+    this._scanNative = _scanWin32,
+    this._scanBackup = _scanFallback,
+  });
+
+  final Future<List<PortDetailInfo>> Function() _scanNative;
+  final Future<List<PortDetailInfo>> Function() _scanBackup;
+
   static const _channel = MethodChannel('clovecom/serial_ports');
   static final _changes = StreamController<void>.broadcast();
   static bool _watching = false;
@@ -31,43 +43,18 @@ class SerialPortCatalog {
 
   Future<SerialPortScan> scan() async {
     if (!Platform.isWindows) return SerialPortScan([]);
-    Object? nativeError;
     try {
-      final values = await _channel.invokeListMethod<dynamic>('listPorts');
-      if (values == null) throw StateError('原生枚举未返回结果');
-      return _sorted(
-        values
-            .map(
-              (dynamic item) => PortDetailInfo(
-                portName: item['port'] as String,
-                friendlyName: item['description'] as String? ?? '',
-                hardwareID: '',
-                manufactureName: '',
-              ),
-            )
-            .toList(),
-      );
-    } catch (error) {
-      nativeError = error;
-    }
-    try {
-      final ports = SerialPort.getPortsWithFullMessages();
-      return _sorted(
-        ports
-            .map(
-              (port) => PortDetailInfo(
-                portName: port.portName,
-                friendlyName: port.friendlyName,
-                hardwareID: port.hardwareID,
-                manufactureName: port.manufactureName,
-              ),
-            )
-            .toList(),
-        warning: '原生枚举不可用，已使用备用枚举：$nativeError',
-      );
-    } catch (error) {
-      // 两路均失败时不能把空快照当作真实拔出。
-      throw StateError('串口枚举失败：$nativeError；$error');
+      return _sorted(await _scanNative());
+    } catch (nativeError) {
+      try {
+        return _sorted(
+          await _scanBackup(),
+          warning: '原生枚举不可用，已使用备用枚举：$nativeError',
+        );
+      } catch (error) {
+        // 两路均失败时不能把空快照当作真实拔出。
+        throw StateError('串口枚举失败：$nativeError；$error');
+      }
     }
   }
 
@@ -86,6 +73,22 @@ class SerialPortCatalog {
     return SerialPortScan(result, warning: warning);
   }
 }
+
+Future<List<PortDetailInfo>> _scanWin32() =>
+    Isolate.run(scanWin32SerialPorts, debugName: '串口扫描');
+
+Future<List<PortDetailInfo>> _scanFallback() =>
+    Isolate.run(_scanWithSerialPortPackage, debugName: '备用串口扫描');
+
+List<PortDetailInfo> _scanWithSerialPortPackage() => [
+  for (final port in SerialPort.getPortsWithFullMessages())
+    PortDetailInfo(
+      portName: port.portName,
+      friendlyName: port.friendlyName,
+      hardwareID: port.hardwareID,
+      manufactureName: port.manufactureName,
+    ),
+];
 
 /// 串行扫描、合并请求，并独立累积拔出检查意图。
 class SerialPortDirectory extends ChangeNotifier {

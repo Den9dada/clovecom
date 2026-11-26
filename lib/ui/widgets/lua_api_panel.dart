@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/traework_theme.dart';
@@ -31,38 +31,41 @@ class _LuaApiPanelState extends State<LuaApiPanel> {
   }
 
   @override
-  Widget build(BuildContext context) => Material(
-    key: const ValueKey('lua-api-panel'),
-    color: TraeWorkColors.brandPurple100.withValues(alpha: 1 - _transparency),
-    elevation: 6,
-    shadowColor: const Color(0x40000000),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(10),
-      side: BorderSide(
-        color: TraeWorkColors.borderBrand.withValues(alpha: 0.25),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      key: const ValueKey('lua-api-panel'),
+      color: colors.surfaceContainerLow.withValues(alpha: 1 - _transparency),
+      elevation: 6,
+      shadowColor: const Color(0x40000000),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: colors.primary.withValues(alpha: 0.25)),
       ),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: Column(
-      children: [
-        SizedBox(
-          height: 48,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.menu_book_outlined,
-                  size: 16,
-                  color: TraeWorkColors.bgBrand,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '接口说明',
-                    style: traeworkText(weight: FontWeight.w600),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 48,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.menu_book_outlined,
+                    size: 16,
+                    color: colors.primary,
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '接口说明',
+                      style: traeworkText(
+                        weight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                  ),
                 DsButton(
                   key: const ValueKey('lua-api-tab'),
                   label: 'API说明',
@@ -206,7 +209,7 @@ class _LuaApiPanelState extends State<LuaApiPanel> {
                   width: 36,
                   height: 3,
                   decoration: BoxDecoration(
-                    color: TraeWorkColors.borderControl,
+                    color: colors.outline,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -216,7 +219,8 @@ class _LuaApiPanelState extends State<LuaApiPanel> {
         ),
       ],
     ),
-  );
+    );
+  }
 
   List<({String title, List<String> lines})> _chapters(String document) {
     final result = <({String title, List<String> lines})>[
@@ -243,6 +247,7 @@ class _LuaApiPanelState extends State<LuaApiPanel> {
 
   // 正文仅使用说明文档已有的标题、段落、列表、表格和代码块格式。
   Iterable<Widget> _body(List<String> lines) sync* {
+    final colors = Theme.of(context).colorScheme;
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
       if (line.trim().isEmpty) continue;
@@ -255,8 +260,8 @@ class _LuaApiPanelState extends State<LuaApiPanel> {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: TraeWorkColors.bgBaseDefault,
-            border: Border.all(color: TraeWorkColors.borderNeutralL1),
+            color: colors.surfaceContainerLowest,
+            border: Border.all(color: colors.outlineVariant),
             borderRadius: BorderRadius.circular(6),
           ),
           child: SingleChildScrollView(
@@ -283,7 +288,7 @@ class _LuaApiPanelState extends State<LuaApiPanel> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: TraeWorkColors.bgBaseDefault,
+              color: colors.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Column(
@@ -326,9 +331,9 @@ class _LuaApiPanelState extends State<LuaApiPanel> {
         TextSpan(
           text: match[1] ?? match[2],
           style: match[1] != null
-              ? const TextStyle(
+              ? TextStyle(
                   fontFamily: 'Consolas',
-                  color: TraeWorkColors.textBrand,
+                  color: Theme.of(context).colorScheme.primary,
                 )
               : const TextStyle(fontWeight: FontWeight.w600),
         ),

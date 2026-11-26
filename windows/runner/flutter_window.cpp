@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "app_update.h"
 #include "flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -27,6 +28,8 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   serial_ports_ = std::make_unique<SerialPorts>(
       GetHandle(), flutter_controller_->engine()->messenger());
+  app_update_channel_ = CreateAppUpdateChannel(
+      flutter_controller_->engine()->messenger(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -42,6 +45,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  app_update_channel_.reset();
   serial_ports_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

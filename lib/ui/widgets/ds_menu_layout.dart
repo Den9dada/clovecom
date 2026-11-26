@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 下拉菜单共用的窗口避让规则：下方放得下时始终向下，否则选择空间更大的一侧。
 class DsMenuGeometry {

@@ -1,0 +1,132 @@
+name: Windows 发布与自动更新
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '在本仓库发布 Release 并更新 Pages 清单（须选择与 pubspec 一致的版本标签）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# 所有版本串行发布，避免旧任务覆盖较新的更新清单。
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    env:
+      RELEASE_REPOSITORY: ${{ github.repository }}
+      APPINSTALLER_BASE_URL: https://den9dada.github.io/clovecom
+      PUBLISH_RELEASE: ${{ github.event_name == 'push' || inputs.publish }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: 校验版本和发布配置
+        id: version
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $text = Get-Content pubspec.yaml -Raw
+          if ($text -notmatch '(?m)^version:\s*(\d+\.\d+\.\d+\+\d+)\s*$') { throw '版本必须为 major.minor.patch+build。' }
+          $tag = 'v' + $Matches[1]
+          if ($env:PUBLISH_RELEASE -eq 'true' -and ($env:GITHUB_REF_TYPE -ne 'tag' -or $env:GITHUB_REF_NAME -ne $tag)) {
+            throw "发布必须从与 pubspec 一致的标签触发：$tag"
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.1'
+          channel: stable
+          cache: true
+      - name: 安装 NSIS
+        run: |
+          choco install nsis --yes --no-progress --limit-output
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS 安装失败。' }
+      - name: 获取 Flutter 依赖
+        run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter 依赖获取失败。' }
+      - name: 静态分析与单元/组件测试
+        run: |
+          cmake -S native/lua_runner -B build/lua_runner -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Lua 工作进程配置失败。' }
+          cmake --build build/lua_runner --config Release
+          if ($LASTEXITCODE -ne 0) { throw 'Lua 工作进程构建失败。' }
+          flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter 静态分析失败。' }
+          flutter test
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter 测试失败。' }
+      - name: 构建并签名 Windows 包
+        env:
+          MSIX_CERTIFICATE_BASE64: ${{ secrets.MSIX_CERTIFICATE_BASE64 }}
+          CLOVECOM_CERT_PASSWORD: ${{ secrets.MSIX_CERTIFICATE_PASSWORD }}
+          MSIX_TIMESTAMP_URL: ${{ vars.MSIX_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:MSIX_CERTIFICATE_BASE64) { throw '缺少固定签名证书 MSIX_CERTIFICATE_BASE64。禁止每次运行生成新证书。' }
+          $pfx = Join-Path $env:RUNNER_TEMP ('clovecom-' + [Guid]::NewGuid().ToString('N') + '.pfx')
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:MSIX_CERTIFICATE_BASE64))
+            & .\package.ps1 -Target All -CertificatePath $pfx -TimestampUrl $env:MSIX_TIMESTAMP_URL
+            if ($LASTEXITCODE -ne 0) { throw 'Windows 打包失败。' }
+            $certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $env:CLOVECOM_CERT_PASSWORD)
+            try {
+              [IO.File]::WriteAllBytes((Join-Path $PWD 'dist/CloveCOM-signing.cer'), $certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+            } finally { $certificate.Dispose() }
+          } finally {
+            if (Test-Path -LiteralPath $pfx) { Remove-Item -LiteralPath $pfx -Force }
+          }
+      - name: 生成更新清单和校验值
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          $msix = @(Get-ChildItem dist -Filter '*.msix')
+          if ($msix.Count -ne 1) { throw '本轮应当只生成一个 MSIX。' }
+          & .\scripts\packaging\new-update-feed.ps1 -MsixPath $msix[0].FullName -Repository $env:RELEASE_REPOSITORY -Tag $env:RELEASE_TAG -PagesUrl $env:APPINSTALLER_BASE_URL -OutputDirectory dist
+          $hashes = Get-ChildItem dist -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' -and $_.Name -notlike '*-SHA256SUMS.txt' -and $_.Extension -ne '.html' } | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          }
+          [IO.File]::WriteAllLines((Join-Path $PWD 'dist/SHA256SUMS.txt'), [string[]]$hashes, [Text.UTF8Encoding]::new($false))
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: dist
+      - name: 发布安装包并更新 Pages 清单
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          & ./scripts/packaging/publish-release.ps1 -Repository $env:RELEASE_REPOSITORY -Tag $env:RELEASE_TAG -ArtifactDirectory dist -PagesBranch gh-pages

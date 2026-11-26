@@ -1,6 +1,6 @@
 // Transform 子页 — 原始 I2C 收发 + I2C 设备探测
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../viewmodels/ch341/i2c_tool_viewmodel.dart';

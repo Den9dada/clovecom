@@ -12,8 +12,7 @@ import 'package:flutter/widgets.dart';
 /// 应用窗口尺寸与布局阈值常量（逻辑像素）。
 abstract final class AppWindowMetrics {
   /// 窗口不可继续缩小的最小宽度，与原生宿主 kMinWindowWidth 同步。
-  /// 1120 = 折叠导航轨道 56 + 内容底线 960 + 窗框/DPI 取整余量，
-  /// 保证最小窗口下不触发外壳横向滚动兜底。
+  /// 导航收起时使用整块内容区域，保留窗框与 DPI 取整余量。
   static const double minimumLogicalWidth = 1120;
 
   /// 窗口不可继续缩小的最小高度，与原生宿主 kMinWindowHeight 同步。
@@ -34,9 +33,6 @@ abstract final class AppWindowMetrics {
 
   /// 侧边导航常规宽度。
   static const double navWidth = 200;
-
-  /// compact 密度下侧边导航折叠为图标轨道的宽度。
-  static const double navRailWidth = 56;
 }
 
 /// 布局密度档位。

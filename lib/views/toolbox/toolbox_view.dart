@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../services/status_bar_service.dart';
 import 'toolbox_tool_registry.dart';
 

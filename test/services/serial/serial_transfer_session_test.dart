@@ -4,13 +4,29 @@ import 'package:clovecom/services/serial/serial_transfer_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('取消在途写后保持忙碌直到真实结束，迟到成功不能推进协议', () async {
+    final controller = SerialTransferController();
+    final gate = Completer<bool>();
+    final session = controller.begin(
+      SerialTransferKind.send,
+      write: (_, _) => gate.future,
+    );
+    final writing = session.write(Uint8List.fromList([1]), 100);
+    session.cancel();
+    expect(controller.isBusy, isTrue);
+    expect(session.isCancelled, isTrue);
+    gate.complete(true);
+    expect(await writing, isFalse);
+    await session.done;
+    expect(controller.isBusy, isFalse);
+  });
   test('三个任务入口共用独占规则', () {
     final controller = SerialTransferController();
     for (final kind in SerialTransferKind.values) {
-      final session = controller.begin(kind, write: (_, _) => true);
+      final session = controller.begin(kind, write: (_, _) async => true);
       for (final next in SerialTransferKind.values) {
         expect(
-          () => controller.begin(next, write: (_, _) => true),
+          () => controller.begin(next, write: (_, _) async => true),
           throwsStateError,
         );
       }
@@ -22,7 +38,7 @@ void main() {
     final controller = SerialTransferController();
     final session = controller.begin(
       SerialTransferKind.receive,
-      write: (_, _) => true,
+      write: (_, _) async => true,
     );
     controller.accept(Uint8List.fromList([6, 0x43, 0xFF]));
     expect(await session.readByte(100), 6);
@@ -38,7 +54,7 @@ void main() {
     var writes = 0, cleanups = 0;
     final session = controller.begin(
       SerialTransferKind.send,
-      write: (_, _) {
+      write: (_, _) async {
         writes++;
         return true;
       },
@@ -49,7 +65,7 @@ void main() {
     session.cancel();
     session.finish();
     expect(await pending, isNull);
-    expect(session.write(Uint8List.fromList([1]), 100), isFalse);
+    expect(await session.write(Uint8List.fromList([1]), 100), isFalse);
     expect(writes, 0);
     expect(cleanups, 1);
   });
@@ -59,7 +75,7 @@ void main() {
     var events = 0, writes = 0;
     final old = controller.begin(
       SerialTransferKind.send,
-      write: (_, _) {
+      write: (_, _) async {
         writes++;
         return true;
       },
@@ -80,7 +96,7 @@ void main() {
     old.cancel();
     final next = controller.begin(
       SerialTransferKind.receive,
-      write: (_, _) => true,
+      write: (_, _) async => true,
     );
     loaded.complete();
     await resume;
@@ -93,7 +109,7 @@ void main() {
     final controller = SerialTransferController();
     final session = controller.begin(
       SerialTransferKind.send,
-      write: (_, _) => false,
+      write: (_, _) async => false,
     );
     var successes = 0, errors = 0;
     final callbacks = session.callbacks(
@@ -111,7 +127,7 @@ void main() {
     session.finish();
     final next = controller.begin(
       SerialTransferKind.send,
-      write: (_, _) => true,
+      write: (_, _) async => true,
     );
     final done = next.callbacks(
       onProgress: (_) {},
@@ -128,7 +144,7 @@ void main() {
     final controller = SerialTransferController();
     final session = controller.begin(
       SerialTransferKind.firmware,
-      write: (_, _) => true,
+      write: (_, _) async => true,
     );
     Uint8List? received;
     session.onData = (data) => received = data;
@@ -143,7 +159,7 @@ void main() {
     final controller = SerialTransferController();
     final session = controller.begin(
       SerialTransferKind.send,
-      write: (_, _) => true,
+      write: (_, _) async => true,
     );
     expect(await session.readByte(1), isNull);
     controller.accept(Uint8List.fromList([6]));

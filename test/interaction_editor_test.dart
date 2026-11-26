@@ -3,7 +3,7 @@ import 'package:clovecom/protocol_editor.dart';
 import 'package:clovecom/ui/controllers/app_controller.dart';
 import 'package:clovecom/ui/pages/protocol_editor_page.dart';
 import 'package:clovecom/ui/widgets/ds_toast.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'support/protocol_messages.dart';

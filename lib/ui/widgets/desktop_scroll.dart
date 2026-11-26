@@ -9,7 +9,7 @@
 library;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 /// 允许触发拖拽滚动的全部指针设备（含鼠标/触控板/触屏）。

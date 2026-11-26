@@ -12,7 +12,7 @@
 /// 任意位置调用顶层函数 [showDsToast] 触发，不需要 BuildContext。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../theme/traework_theme.dart';
 import 'ds_interaction.dart';
@@ -197,7 +197,7 @@ class _DsToastCardState extends State<_DsToastCard>
             child: Container(
               constraints: const BoxConstraints(maxWidth: 360),
               decoration: BoxDecoration(
-                color: TraeWorkColors.bgBaseDefault,
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
                 borderRadius: BorderRadius.circular(TraeWorkRadius.r8),
                 border: Border.all(color: _withAlpha(accent, 0.4)),
                 boxShadow: const [
@@ -230,7 +230,7 @@ class _DsToastCardState extends State<_DsToastCard>
                               widget.entry.message,
                               style: traeworkText(
                                 size: TraeWorkFontSizes.bodyMd,
-                                color: TraeWorkColors.textDefault,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                           ),

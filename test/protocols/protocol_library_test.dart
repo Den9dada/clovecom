@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clovecom/protocol_editor.dart';
 import 'package:clovecom/services/firmware_protocol_binding.dart';
-import 'package:clovecom/models/serial_port_model.dart';
 import 'package:clovecom/src/application/lua_runtime.dart';
 import 'package:clovecom/src/application/ymodem_lua_source.dart';
 
@@ -94,15 +93,8 @@ void main() {
     final app = ProtocolLibrary(runtime: ControlledRuntime());
     await app.initialize();
     final binding = FirmwareProtocolBinding(app);
-    var config = SerialPortConfig(portName: 'COM1');
     final d = app.interactionDrafts.first;
-    await binding.load(
-      d.id,
-      locked: () => false,
-      connected: () => false,
-      currentConfig: () => config,
-      applyConfig: (v) => config = v,
-    );
+    await binding.load(d.id, locked: () => false);
     final old = binding.loaded!;
     d.setSource('${d.source}\n-- 新版本');
     await app.saveInteraction(d.id);
@@ -121,15 +113,8 @@ void main() {
     final app = ProtocolLibrary(runtime: runtime);
     await app.initialize();
     final binding = FirmwareProtocolBinding(app);
-    var config = SerialPortConfig(portName: 'COM2');
     final original = app.interactionDrafts.first;
-    Future<void> load(String id) => binding.load(
-      id,
-      locked: () => false,
-      connected: () => false,
-      currentConfig: () => config,
-      applyConfig: (v) => config = v,
-    );
+    Future<void> load(String id) => binding.load(id, locked: () => false);
     await load(original.id);
     final invalid = app.createInteraction(
       '错误脚本',
@@ -145,7 +130,7 @@ void main() {
     app.dispose();
   });
 
-  test('接口初值只在明确载入时填充，连接中拒绝修改', () async {
+  test('载入只保留不可变配置建议，实际配置由通信管理负责', () async {
     final app = ProtocolLibrary(runtime: ControlledRuntime());
     await app.initialize();
     final source = newInteractionSource('升级', InteractionPurpose.upgrade)
@@ -160,24 +145,16 @@ void main() {
     );
     await app.saveInteraction(draft.id);
     final binding = FirmwareProtocolBinding(app);
-    var connected = true;
-    var config = SerialPortConfig(portName: 'COM2');
-    Future<void> load() => binding.load(
-      draft.id,
-      locked: () => false,
-      connected: () => connected,
-      currentConfig: () => config,
-      applyConfig: (v) => config = v,
-    );
-    await expectLater(load(), throwsStateError);
-    expect(config.baudRate, 9600);
-    expect(binding.loaded, isNull);
-    connected = false;
+    Future<void> load() => binding.load(draft.id, locked: () => false);
     await load();
-    expect(config.baudRate, 115200);
-    config = config.copyWith(baudRate: 57600);
     expect(binding.loaded, isNotNull);
-    expect(config.baudRate, 57600);
+    expect(binding.configSuggestion, {'baud_rate': 115200});
+    expect(
+      () => binding.configSuggestion['baud_rate'] = 1,
+      throwsUnsupportedError,
+    );
+    await load();
+    expect(binding.loaded, isNotNull);
     binding.dispose();
     app.dispose();
   });
@@ -190,9 +167,6 @@ void main() {
     final loading = binding.load(
       app.savedInteractions.first.id,
       locked: () => false,
-      connected: () => false,
-      currentConfig: () => SerialPortConfig(portName: 'COM1'),
-      applyConfig: (_) => fail('失效载入不得修改配置'),
     );
     binding.unload();
     runtime.pending!.complete([]);
