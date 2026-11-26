@@ -44,7 +44,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Release package (compiled binaries)
+# Release & packaging outputs
+/dist/
 /release_package/
 
 **/__pycache__/

@@ -2,6 +2,12 @@
 
 ## 2026-11-26
 
+### chore: 清理过时打包脚本与临时文件并精简 README
+
+- 删除已被 `package.ps1` 与 `scripts/packaging/` 取代的旧版打包目录与脚本（`installer/`、`scripts/build_installer_once.ps1`、`scripts/check_*.ps1`、`scripts/prepare_*.ps1`、`release_package/`）以及本地日志/缓存（`flutter_01.log`、`.qoder/`）。
+- 在 `.gitignore` 中新增 `/dist/` 忽略规则。
+- 重写 `README.md`，精简为面向用户的核心功能与下载说明。
+
 ### feat: 实现 Windows 自动升级与应用打包发布流水线
 
 - 新增应用内自动更新模块：`lib/src/application/app_update.dart`（版本比较、AppInstaller 清单安全校验、更新控制器与定时检查）、`lib/src/io/app_update_download.dart`（受信任域名与重定向校验、SHA-256 完整性验证及 256KB 分批落盘）、`lib/src/io/app_update_preferences.dart`（检查间隔持久化）与 `lib/src/platform/windows_app_update.dart`（Windows 宿主与 MSIX/安装版更新交接）。
