@@ -7,7 +7,6 @@ import '../src/core/protocol.dart';
 import '../src/application/drafts.dart';
 import '../src/application/interaction_draft.dart';
 import '../src/application/lua_runtime.dart';
-import '../src/application/point_table_lua_source.dart';
 import '../src/application/ymodem_lua_source.dart';
 import '../src/application/project_defaults.dart';
 
@@ -71,15 +70,6 @@ class ProtocolLibrary extends ChangeNotifier {
       interactions[value.id] = value;
     }
     var needsSave = false;
-    if (json?['pointTableSeeded'] != true) {
-      final value = InteractionProtocol(
-        id: _id('interaction'),
-        name: '点表协议—Lua',
-        source: pointTableLuaSource,
-      );
-      interactions[value.id] = value;
-      needsSave = true;
-    }
     if (json?['ymodemSeeded'] != true) {
       final names = interactions.values.map((p) => p.name).toSet();
       const name = '标准 YMODEM—Lua';
@@ -112,7 +102,6 @@ class ProtocolLibrary extends ChangeNotifier {
   ) async {
     final json = <String, dynamic>{
       'version': 1,
-      'pointTableSeeded': true,
       'ymodemSeeded': true,
       'protocols': protocols.values.map((p) => p.toJson()).toList(),
       'interactions': interactions.values.map((p) => p.toJson()).toList(),

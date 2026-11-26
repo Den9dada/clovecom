@@ -2,6 +2,11 @@
 
 ## 2026-11-26
 
+### fix: 修复数据未铺满时滚轮冻结视图并移除预置点表协议
+
+- 在 `lib/widgets/communication_session_data_view.dart` 中新增 `_canScrollOlder` 判断，当视口数据尚未铺满且无更早历史分页时忽略向上滚轮事件，避免误触发“回到最新”并冻结新数据刷新。
+- 在 `lib/services/protocol_library.dart` 中移除初始化时预置的“点表协议—Lua”及 `pointTableSeeded` 标记，保留“标准 YMODEM—Lua”预置，并同步更新 `test/protocols/protocol_library_test.dart`。
+
 ### chore: 清理过时打包脚本与临时文件并精简 README
 
 - 删除已被 `package.ps1` 与 `scripts/packaging/` 取代的旧版打包目录与脚本（`installer/`、`scripts/build_installer_once.ps1`、`scripts/check_*.ps1`、`scripts/prepare_*.ps1`、`release_package/`）以及本地日志/缓存（`flutter_01.log`、`.qoder/`）。

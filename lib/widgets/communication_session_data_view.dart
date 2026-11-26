@@ -616,8 +616,21 @@ class _DataViewState extends State<CommunicationSessionDataView> {
     return false;
   }
 
+  bool get _canScrollOlder {
+    final hasScrollableContent =
+        _scroll.hasClients &&
+        _scroll.position.hasContentDimensions &&
+        _scroll.position.maxScrollExtent >
+            _scroll.position.minScrollExtent + 0.5;
+    final first = _historyRange?.first;
+    final hasOlderHistory =
+        first != null && _window.isNotEmpty && first < _window.first.sequence;
+    return hasScrollableContent || hasOlderHistory;
+  }
+
   void _scrollDirection(double delta) {
     if (_correcting || _historyGeneration != session.history.generation) return;
+    if (delta < 0 && !_canScrollOlder) return;
     _towardsOlder = delta < 0;
     if (delta < 0 && _following) {
       _following = false;
@@ -643,6 +656,7 @@ class _DataViewState extends State<CommunicationSessionDataView> {
     }
     final delta = event.scrollDelta.dy;
     if (delta == 0) return;
+    if (delta < 0 && !_canScrollOlder) return;
     if (_wheelRemainder.sign != delta.sign) _wheelRemainder = 0;
     final position = _scroll.position as _HistoryScrollPosition;
     final target = position.projectedWheelOffset + delta;

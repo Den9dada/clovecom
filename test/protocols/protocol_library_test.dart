@@ -59,13 +59,13 @@ void main() {
     final file = File('${dir.path}/library.json');
     final app = ProtocolLibrary();
     await app.initialize(file: file);
-    final id = app.savedInteractions.first.id;
-    await app.deleteInteraction(id);
+    expect(app.savedInteractions, hasLength(1));
+    expect(app.savedInteractions.single.source, ymodemLuaSource);
     await app.deleteInteraction(app.savedInteractions.single.id);
     final second = ProtocolLibrary();
     await second.initialize(file: file);
     expect(second.savedInteractions, isEmpty);
-    expect(jsonDecode(await file.readAsString())['pointTableSeeded'], isTrue);
+    expect(jsonDecode(await file.readAsString())['ymodemSeeded'], isTrue);
     app.dispose();
     second.dispose();
   });
