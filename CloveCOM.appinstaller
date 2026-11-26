@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstaller xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
+    Version="1.0.0.1" Uri="https://den9dada.github.io/clovecom/CloveCOM.appinstaller">
+  <MainPackage Name="CloveCOM.Desktop" Publisher="CN=CloveCOM" Version="1.0.0.1"
+      ProcessorArchitecture="x64" Uri="https://github.com/Den9dada/clovecom/releases/download/v1.0.0%2B1/CloveCOM-1.0.0.1-windows-x64.msix" />
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="4" ShowPrompt="true" UpdateBlocksActivation="false" />
+    <AutomaticBackgroundTask />
+  </UpdateSettings>
+</AppInstaller>
